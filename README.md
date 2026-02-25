@@ -1,5 +1,7 @@
 # MTA Ridership Project
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/advanced-computing/bouncing-penguin/blob/main/mta_ridership_project.ipynb)
+
 ## Team Members
 
 - Haixin Liu
