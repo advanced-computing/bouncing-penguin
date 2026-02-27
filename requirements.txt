@@ -4,4 +4,4 @@ plotly
 requests
 ruff
 pytest
-matplotlib
+matplotlibpandera
