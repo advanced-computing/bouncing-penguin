@@ -1,4 +1,5 @@
 import pandas as pd
+import pandera as pa
 import pytest
 
 from validation import validate_mta_data
