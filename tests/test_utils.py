@@ -53,15 +53,13 @@ def test_clean_mta_df_already_sorted():
 # ---------- Tests for plot_ridership_recovery ----------
 
 def _make_ridership_df():
-    """Helper: create a small valid ridership DataFrame for testing."""
     return pd.DataFrame({
         "date": pd.to_datetime(["2020-03-01", "2020-03-02", "2020-03-03"]),
-        "subways_of_comparable_pre_pandemic_day": [0.9, 0.5, 0.6],
-        "buses_of_comparable_pre_pandemic_day": [0.95, 0.6, 0.7],
-        "lirr_of_comparable_pre_pandemic_day": [0.85, 0.4, 0.5],
-        "metro_north_of_comparable_pre_pandemic_day": [0.88, 0.45, 0.55],
+        "subways_pct_of_comparable_pre_pandemic_day": [0.9, 0.5, 0.6],
+        "buses_pct_of_comparable_pre_pandemic_day": [1.05, 0.6, 0.7],
+        "lirr_pct_of_comparable_pre_pandemic_day": [0.8, 0.4, 0.5],
+        "metro_north_pct_of_comparable_pre_pandemic_day": [0.88, 0.45, 0.55],
     })
-
 
 def test_plot_ridership_recovery_returns_figure():
     """Test that the function returns a matplotlib Figure without error."""
