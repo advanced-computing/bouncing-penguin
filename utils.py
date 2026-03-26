@@ -1,11 +1,27 @@
 import matplotlib.pyplot as plt
 import pandas as pd
+from google.cloud import bigquery
+from google.oauth2 import service_account
+
+PROJECT_ID = "sipa-adv-c-bouncing-penguin"
+DATASET_TABLE = "mta_data.daily_ridership"
 
 
 def load_mta_data() -> pd.DataFrame:
-    """Load MTA ridership data from NYC Open Data API."""
-    url = "https://data.ny.gov/resource/vxuj-8kew.csv?$limit=50000"
-    df = pd.read_csv(url)
+    """Load MTA ridership data from BigQuery."""
+    try:
+        import streamlit as st
+
+        credentials = service_account.Credentials.from_service_account_info(
+            st.secrets["gcp_service_account"]
+        )
+        client = bigquery.Client(credentials=credentials, project=PROJECT_ID)
+    except Exception:
+        # Fallback: use default credentials (e.g. local gcloud auth)
+        client = bigquery.Client(project=PROJECT_ID)
+
+    query = f"SELECT * FROM `{PROJECT_ID}.{DATASET_TABLE}`"
+    df = client.query(query).to_dataframe()
     df = clean_mta_df(df)
     return df
 

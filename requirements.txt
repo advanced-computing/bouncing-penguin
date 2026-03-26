@@ -6,3 +6,6 @@ ruff
 pytest
 matplotlib
 pandera
+pandas-gbq
+google-cloud-bigquery
+db-dtypes

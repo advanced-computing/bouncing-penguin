@@ -276,14 +276,23 @@ with tab_dashboard:
             dates = sel_holidays[sel_holidays["holiday"] == holiday]["date"]
             color = colors[i % len(colors)]
             for j, d in enumerate(dates):
+                d = pd.Timestamp(d)
                 if filtered["date"].min() <= d <= filtered["date"].max():
-                    fig_holiday.add_vline(
-                        x=d,
-                        line_dash="dot",
-                        line_color=color,
-                        annotation_text=holiday if j == 0 else None,
-                        annotation_position="top left",
+                    d_str = d.strftime("%Y-%m-%d")
+                    fig_holiday.add_shape(
+                        type="line",
+                        x0=d_str, x1=d_str,
+                        y0=0, y1=1,
+                        yref="paper",
+                        line=dict(dash="dot", color=color),
                     )
+                    if j == 0:
+                        fig_holiday.add_annotation(
+                            x=d_str, y=1, yref="paper",
+                            text=holiday,
+                            showarrow=False,
+                            xanchor="left",
+                        )
 
         fig_holiday.update_layout(
             yaxis_title="Subway Recovery (% of Pre-Pandemic)",
@@ -298,7 +307,7 @@ with tab_dashboard:
         st.markdown("**Average Subway Ridership Around Holidays**")
         impact_rows = []
         for _, row in sel_holidays.iterrows():
-            h_date = row["date"]
+            h_date = pd.Timestamp(row["date"])
             # 3-day window around the holiday
             window = filtered[
                 (filtered["date"] >= h_date - pd.Timedelta(days=1))
