@@ -37,113 +37,13 @@ This project analyzes MTA daily ridership trends in New York City to understand 
 
 ## Setup
 
-### 1. Clone the repository
+1. Clone this repository: `git clone https://github.com/advanced-computing/bouncing-penguin.git`
+2. Create virtual environment: `python -m venv .venv`
+3. Activate virtual environment:
+   - Mac/Linux: `source .venv/bin/activate`
+   - Windows: `.venv\Scripts\activate`
+4. Install dependencies: `pip install -r requirements.txt`
 
-```bash
-git clone https://github.com/advanced-computing/bouncing-penguin.git
-cd bouncing-penguin
-```
+## Usage
 
-### 2. Create a virtual environment
-
-```bash
-python3 -m venv .venv
-```
-
-### 3. Activate the virtual environment
-
-Mac/Linux:
-
-```bash
-source .venv/bin/activate
-```
-
-### 4. Install dependencies
-
-```bash
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
-
-## Run the Streamlit App
-
-From the project directory, run:
-
-```bash
-python -m streamlit run streamlit_app.py
-```
-
-Streamlit should print a local URL in the terminal, usually:
-
-```text
-http://localhost:8501
-```
-
-Open that URL in your browser.
-
-## Run Tests
-
-To run the unit tests:
-
-```bash
-python -m pytest -p no:cacheprovider
-```
-
-## App Pages
-
-### Home Page
-
-The homepage introduces the project, the team, and the main research questions.
-
-### MTA Ridership Page
-
-This page shows:
-
-- daily ridership over time for selected transit services
-- recovery rates compared with pre-pandemic levels
-- average weekday versus weekend subway ridership
-
-### Second Dataset Page
-
-This page shows NYC COVID-19 daily case counts and helps provide context for major ridership drops and recovery periods.
-
-## Optional: Load Data to BigQuery
-
-The repository also includes a script for loading the MTA ridership dataset into BigQuery:
-
-```bash
-python load_data_to_bq.py
-```
-
-This script:
-
-- authenticates with your Google account
-- downloads MTA ridership data from the NYC Open Data API
-- uploads the data to the BigQuery table
-- runs a verification query after upload
-
-Before using it, make sure your environment includes the required Google and BigQuery dependencies from `requirements.txt`, and be prepared to complete the browser-based Google login flow.
-
-## Notes
-
-- The app pulls live data from public APIs, so internet access is required.
-- If a dependency is missing, rerun:
-
-```bash
-python -m pip install -r requirements.txt
-```
-
-- If your environment is broken, recreate it:
-
-```bash
-rm -rf .venv
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-```
-
-- Streamlit secrets are ignored through `.streamlit/secrets.toml`, so local credentials should not be committed.
-
-## Project Goal
-
-Our goal is to make it easier to explore how public transit usage in New York changed after COVID-19 and how recovery differs across transit modes. We want users to compare trends visually and better understand how public health conditions affected ridership behavior.
+Open `mta_ridership_project.ipynb` in Jupyter Notebook or VS Code to run the analysis.
