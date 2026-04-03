@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1100" viewBox="0 0 1800 1100" role="img" aria-labelledby="title desc">
+  <title id="title">Lab 11 Data Flow Diagram</title>
+  <desc id="desc">Google Drawings-style flowchart showing how MTA ridership data and NYC COVID data move from upstream generation through public APIs, a Python batch loader, BigQuery storage, shared query utilities, Streamlit pages, and final user analysis.</desc>
+
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L12,6 L0,12 z" fill="#5f6368" />
+    </marker>
+    <style>
+      .bg { fill: #ffffff; }
+      .stage { font: 700 20px Arial, sans-serif; fill: #3c4043; }
+      .title { font: 700 34px Arial, sans-serif; fill: #202124; }
+      .subtitle { font: 16px Arial, sans-serif; fill: #5f6368; }
+      .box-title { font: 700 20px Arial, sans-serif; fill: #202124; }
+      .box-text { font: 16px Arial, sans-serif; fill: #202124; }
+      .note-title { font: 700 16px Arial, sans-serif; fill: #8a4b00; }
+      .note-text { font: 15px Arial, sans-serif; fill: #7a3e00; }
+      .connector { stroke: #5f6368; stroke-width: 4; fill: none; marker-end: url(#arrow); }
+      .guide { stroke: #dadce0; stroke-width: 2; fill: none; }
+      .dashed { stroke-dasharray: 8 8; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1800" height="1100" />
+
+  <text x="60" y="60" class="title">Lab 11 Data Flow Diagram</text>
+  <text x="60" y="92" class="subtitle">Google Drawings-style draft for the MTA ridership project</text>
+
+  <text x="110" y="150" class="stage">Upstream generation</text>
+  <text x="430" y="150" class="stage">Public APIs</text>
+  <text x="770" y="150" class="stage">Batch loading</text>
+  <text x="1110" y="150" class="stage">Storage</text>
+  <text x="1430" y="150" class="stage">App and output</text>
+
+  <rect x="70" y="190" width="250" height="130" rx="18" fill="#d2e3fc" stroke="#5b9cf6" stroke-width="3" />
+  <text x="95" y="228" class="box-title">MTA Operations</text>
+  <text x="95" y="258" class="box-text">Daily ridership and traffic</text>
+  <text x="95" y="282" class="box-text">estimates are generated.</text>
+
+  <rect x="70" y="380" width="250" height="130" rx="18" fill="#ceead6" stroke="#57bb8a" stroke-width="3" />
+  <text x="95" y="418" class="box-title">NYC Health Reporting</text>
+  <text x="95" y="448" class="box-text">Daily COVID case counts</text>
+  <text x="95" y="472" class="box-text">are compiled and published.</text>
+
+  <rect x="390" y="190" width="250" height="130" rx="18" fill="#dfe1fd" stroke="#7c83f7" stroke-width="3" />
+  <text x="415" y="228" class="box-title">Open NY API</text>
+  <text x="415" y="258" class="box-text">Dataset: `vxuj-8kew`</text>
+  <text x="415" y="282" class="box-text">Structured JSON endpoint</text>
+
+  <rect x="390" y="380" width="250" height="130" rx="18" fill="#f3e8fd" stroke="#b26bf3" stroke-width="3" />
+  <text x="415" y="418" class="box-title">NYC Open Data API</text>
+  <text x="415" y="448" class="box-text">Dataset: `rc75-m7u3`</text>
+  <text x="415" y="472" class="box-text">Structured JSON endpoint</text>
+
+  <rect x="710" y="190" width="300" height="320" rx="18" fill="#fef7d6" stroke="#f6c343" stroke-width="3" />
+  <text x="735" y="228" class="box-title">`load_data_to_bq.py`</text>
+  <text x="735" y="264" class="box-text">1. Fetches both APIs with `requests.get()`</text>
+  <text x="735" y="292" class="box-text">2. Loads results into pandas DataFrames</text>
+  <text x="735" y="320" class="box-text">3. Parses dates and numeric fields</text>
+  <text x="735" y="348" class="box-text">4. Renames MTA legacy percent columns</text>
+  <text x="735" y="376" class="box-text">5. Uploads tables with `to_gbq()`</text>
+  <text x="735" y="404" class="box-text">6. Verifies row count and date range</text>
+  <text x="735" y="450" class="box-text">Load pattern: batch full refresh</text>
+
+  <rect x="1070" y="190" width="260" height="130" rx="18" fill="#fce8e6" stroke="#e67c73" stroke-width="3" />
+  <text x="1095" y="228" class="box-title">BigQuery Table A</text>
+  <text x="1095" y="258" class="box-text">`mta_data.daily_ridership`</text>
+  <text x="1095" y="282" class="box-text">Project storage layer</text>
+
+  <rect x="1070" y="380" width="260" height="130" rx="18" fill="#fde7f3" stroke="#ec76b6" stroke-width="3" />
+  <text x="1095" y="418" class="box-title">BigQuery Table B</text>
+  <text x="1095" y="448" class="box-text">`mta_data.nyc_covid_cases`</text>
+  <text x="1095" y="472" class="box-text">Project storage layer</text>
+
+  <rect x="1390" y="190" width="300" height="150" rx="18" fill="#d7f5ef" stroke="#34a853" stroke-width="3" />
+  <text x="1415" y="228" class="box-title">Shared Query Layer</text>
+  <text x="1415" y="258" class="box-text">`utils.py` builds SQL,</text>
+  <text x="1415" y="282" class="box-text">casts types, cleans data,</text>
+  <text x="1415" y="306" class="box-text">and caches query results.</text>
+
+  <rect x="1390" y="400" width="300" height="170" rx="18" fill="#e8f0fe" stroke="#5b9cf6" stroke-width="3" />
+  <text x="1415" y="438" class="box-title">Streamlit Pages</text>
+  <text x="1415" y="468" class="box-text">`streamlit_app.py`</text>
+  <text x="1415" y="492" class="box-text">`pages/1_MTA_Ridership.py`</text>
+  <text x="1415" y="516" class="box-text">`pages/2_Second_Dataset.py`</text>
+  <text x="1415" y="548" class="box-text">Charts, KPIs, and trend views</text>
+
+  <rect x="1390" y="650" width="300" height="120" rx="18" fill="#ede7f6" stroke="#8e63ce" stroke-width="3" />
+  <text x="1415" y="688" class="box-title">User Outcome</text>
+  <text x="1415" y="718" class="box-text">Recovery analysis, context,</text>
+  <text x="1415" y="742" class="box-text">and project insights</text>
+
+  <line x1="320" y1="255" x2="390" y2="255" class="connector" />
+  <line x1="320" y1="445" x2="390" y2="445" class="connector" />
+  <line x1="640" y1="255" x2="710" y2="255" class="connector" />
+  <line x1="640" y1="445" x2="710" y2="445" class="connector" />
+  <line x1="1010" y1="255" x2="1070" y2="255" class="connector" />
+  <line x1="1010" y1="445" x2="1070" y2="445" class="connector" />
+  <path d="M1330 255 L1360 255 L1360 265 L1390 265" class="connector" />
+  <path d="M1330 445 L1360 445 L1360 265 L1390 265" class="connector" />
+  <line x1="1540" y1="340" x2="1540" y2="400" class="connector" />
+  <line x1="1540" y1="570" x2="1540" y2="650" class="connector" />
+
+  <rect x="70" y="610" width="250" height="120" rx="12" fill="#fff4d7" stroke="#f9ab00" stroke-width="2.5" />
+  <text x="92" y="645" class="note-title">Possible failure</text>
+  <text x="92" y="675" class="note-text">Upstream collection methods</text>
+  <text x="92" y="698" class="note-text">or reporting definitions change.</text>
+  <line x1="195" y1="610" x2="195" y2="510" class="guide dashed" />
+
+  <rect x="390" y="610" width="250" height="120" rx="12" fill="#fff4d7" stroke="#f9ab00" stroke-width="2.5" />
+  <text x="412" y="645" class="note-title">Possible failure</text>
+  <text x="412" y="675" class="note-text">API outage, timeout, or</text>
+  <text x="412" y="698" class="note-text">schema drift in source fields.</text>
+  <line x1="515" y1="610" x2="515" y2="510" class="guide dashed" />
+
+  <rect x="710" y="610" width="300" height="120" rx="12" fill="#fff4d7" stroke="#f9ab00" stroke-width="2.5" />
+  <text x="732" y="645" class="note-title">Possible failure</text>
+  <text x="732" y="675" class="note-text">Authentication fails, bad values pass through,</text>
+  <text x="732" y="698" class="note-text">or a bad full refresh replaces a good table.</text>
+  <line x1="860" y1="610" x2="860" y2="510" class="guide dashed" />
+
+  <rect x="1070" y="610" width="260" height="120" rx="12" fill="#fff4d7" stroke="#f9ab00" stroke-width="2.5" />
+  <text x="1092" y="645" class="note-title">Possible failure</text>
+  <text x="1092" y="675" class="note-text">Permissions, dataset creation,</text>
+  <text x="1092" y="698" class="note-text">or table access problems.</text>
+  <line x1="1200" y1="610" x2="1200" y2="510" class="guide dashed" />
+
+  <rect x="1390" y="830" width="300" height="150" rx="12" fill="#fff4d7" stroke="#f9ab00" stroke-width="2.5" />
+  <text x="1412" y="865" class="note-title">Possible failure</text>
+  <text x="1412" y="895" class="note-text">Missing columns, stale cache,</text>
+  <text x="1412" y="918" class="note-text">query errors, or chart rendering issues.</text>
+  <text x="1412" y="941" class="note-text">Interpretation can also hide short spikes.</text>
+  <line x1="1540" y1="830" x2="1540" y2="770" class="guide dashed" />
+
+  <text x="60" y="1040" class="subtitle">Main question answered by this diagram: how the data is generated, loaded, stored, queried, and turned into user-facing analysis, plus what can go wrong at each stage.</text>
+</svg>
