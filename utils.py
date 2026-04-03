@@ -1,29 +1,241 @@
-import matplotlib.pyplot as plt
+from contextlib import contextmanager
+from datetime import date
+import time
+from typing import Iterable
+
 import pandas as pd
+import streamlit as st
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
 PROJECT_ID = "sipa-adv-c-bouncing-penguin"
-DATASET_TABLE = "mta_data.daily_ridership"
+MTA_TABLE = "mta_data.daily_ridership"
+COVID_TABLE = "mta_data.nyc_covid_cases"
+MTA_MIN_DATE = date(2020, 3, 1)
+COVID_MIN_DATE = date(2020, 3, 1)
+
+MTA_COLUMNS = (
+    "date",
+    "subways_total_estimated_ridership",
+    "subways_pct_of_comparable_pre_pandemic_day",
+    "buses_total_estimated_ridership",
+    "buses_pct_of_comparable_pre_pandemic_day",
+    "lirr_total_estimated_ridership",
+    "lirr_pct_of_comparable_pre_pandemic_day",
+    "metro_north_total_estimated_ridership",
+    "metro_north_pct_of_comparable_pre_pandemic_day",
+    "bridges_and_tunnels_total_traffic",
+    "bridges_and_tunnels_pct_of_comparable_pre_pandemic_day",
+)
+
+COVID_COLUMNS = (
+    "date_of_interest",
+    "case_count",
+)
+
+MTA_LEGACY_COLUMN_MAP = {
+    "subways_pct_of_comparable_pre_pandemic_day": "subways_of_comparable_pre_pandemic_day",
+    "buses_pct_of_comparable_pre_pandemic_day": "buses_of_comparable_pre_pandemic_day",
+    "lirr_pct_of_comparable_pre_pandemic_day": "lirr_of_comparable_pre_pandemic_day",
+    "metro_north_pct_of_comparable_pre_pandemic_day": "metro_north_of_comparable_pre_pandemic_day",
+    "bridges_and_tunnels_pct_of_comparable_pre_pandemic_day": "bridges_and_tunnels_of_comparable_pre_pandemic_day",
+    "access_a_ride_pct_of_comparable_pre_pandemic_day": "access_a_ride_of_comparable_pre_pandemic_day",
+    "staten_island_railway_pct_of_comparable_pre_pandemic_day": "staten_island_railway_of_comparable_pre_pandemic_day",
+}
 
 
-def load_mta_data() -> pd.DataFrame:
-    """Load MTA ridership data from BigQuery."""
+@st.cache_resource(show_spinner=False)
+def get_bigquery_client() -> bigquery.Client:
+    """Create and cache the BigQuery client used by the app."""
     try:
-        import streamlit as st
-
         credentials = service_account.Credentials.from_service_account_info(
             st.secrets["gcp_service_account"]
         )
-        client = bigquery.Client(credentials=credentials, project=PROJECT_ID)
+        return bigquery.Client(credentials=credentials, project=PROJECT_ID)
     except Exception:
         # Fallback: use default credentials (e.g. local gcloud auth)
-        client = bigquery.Client(project=PROJECT_ID)
+        return bigquery.Client(project=PROJECT_ID)
 
-    query = f"SELECT * FROM `{PROJECT_ID}.{DATASET_TABLE}`"
-    df = client.query(query).to_dataframe()
-    df = clean_mta_df(df)
-    return df
+
+def _render_select_clause(columns: Iterable[str]) -> str:
+    return ", ".join(f"`{column}`" for column in columns)
+
+
+def _get_table_columns(table_name: str) -> set[str]:
+    client = get_bigquery_client()
+    table = client.get_table(f"{PROJECT_ID}.{table_name}")
+    return {field.name for field in table.schema}
+
+
+def _resolve_mta_columns(columns: Iterable[str]) -> list[str]:
+    available_columns = _get_table_columns(MTA_TABLE)
+    resolved_columns = []
+
+    for column in columns:
+        if column in available_columns:
+            resolved_columns.append(f"`{column}`")
+            continue
+
+        legacy_column = MTA_LEGACY_COLUMN_MAP.get(column)
+        if legacy_column and legacy_column in available_columns:
+            resolved_columns.append(f"`{legacy_column}` AS `{column}`")
+            continue
+
+    return resolved_columns
+
+
+def _get_source_column(
+    table_name: str,
+    output_column: str,
+    available_columns: set[str],
+) -> str | None:
+    if output_column in available_columns:
+        return output_column
+
+    if table_name == MTA_TABLE:
+        legacy_column = MTA_LEGACY_COLUMN_MAP.get(output_column)
+        if legacy_column in available_columns:
+            return legacy_column
+
+    return None
+
+
+def _build_select_expressions(
+    table_name: str,
+    requested_columns: Iterable[str],
+) -> tuple[list[str], str]:
+    available_columns = _get_table_columns(table_name)
+    date_column = "date" if table_name == MTA_TABLE else "date_of_interest"
+    expressions = []
+
+    for output_column in requested_columns:
+        source_column = _get_source_column(table_name, output_column, available_columns)
+        if not source_column:
+            continue
+
+        if output_column == date_column:
+            expressions.append(
+                f"SAFE_CAST(`{source_column}` AS DATE) AS `{output_column}`"
+            )
+        else:
+            expressions.append(
+                f"SAFE_CAST(`{source_column}` AS FLOAT64) AS `{output_column}`"
+            )
+
+    return expressions, date_column
+
+
+def _load_table(
+    table_name: str,
+    columns: Iterable[str],
+    order_by: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    lookback_days: int | None = None,
+) -> pd.DataFrame:
+    select_expressions, date_column = _build_select_expressions(table_name, columns)
+    if not select_expressions:
+        raise KeyError(f"No requested columns were found in BigQuery table {table_name}.")
+
+    where_clause = ""
+    if lookback_days is not None:
+        where_clause = f"""
+        WHERE `{date_column}` BETWEEN (
+            SELECT DATE_SUB(MAX(`{date_column}`), INTERVAL {lookback_days} DAY)
+            FROM normalized
+        ) AND (
+            SELECT MAX(`{date_column}`)
+            FROM normalized
+        )
+        """
+    elif start_date and end_date:
+        where_clause = (
+            f"\n        WHERE `{date_column}` BETWEEN '{start_date}' AND '{end_date}'"
+        )
+
+    query = f"""
+        WITH normalized AS (
+            SELECT
+                {", ".join(select_expressions)}
+            FROM `{PROJECT_ID}.{table_name}`
+        )
+        SELECT *
+        FROM normalized
+        {where_clause}
+        ORDER BY `{order_by}`
+    """
+    client = get_bigquery_client()
+    query_job = client.query(query)
+    return query_job.to_dataframe(create_bqstorage_client=False)
+
+
+@st.cache_data(show_spinner=False, persist="disk")
+def load_mta_data(
+    columns: tuple[str, ...] = MTA_COLUMNS,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    lookback_days: int | None = None,
+) -> pd.DataFrame:
+    """Load MTA ridership data from BigQuery."""
+    df = _load_table(
+        MTA_TABLE,
+        columns,
+        order_by="date",
+        start_date=start_date,
+        end_date=end_date,
+        lookback_days=lookback_days,
+    )
+    return clean_mta_df(df)
+
+
+def clean_covid_df(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+
+    if "date_of_interest" not in out.columns:
+        raise KeyError("Missing 'date_of_interest' column")
+
+    out["date_of_interest"] = pd.to_datetime(out["date_of_interest"])
+    out = out.sort_values("date_of_interest").reset_index(drop=True)
+
+    if "case_count" in out.columns:
+        out["case_count"] = pd.to_numeric(out["case_count"], errors="coerce")
+
+    out["year"] = out["date_of_interest"].dt.year
+    out["month"] = out["date_of_interest"].dt.month
+    out["year_month"] = out["date_of_interest"].dt.to_period("M").astype(str)
+
+    return out
+
+
+@st.cache_data(show_spinner=False, persist="disk")
+def load_covid_data(
+    columns: tuple[str, ...] = COVID_COLUMNS,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    lookback_days: int | None = None,
+) -> pd.DataFrame:
+    """Load NYC COVID case data from BigQuery."""
+    df = _load_table(
+        COVID_TABLE,
+        columns,
+        order_by="date_of_interest",
+        start_date=start_date,
+        end_date=end_date,
+        lookback_days=lookback_days,
+    )
+    return clean_covid_df(df)
+
+
+@contextmanager
+def display_load_time():
+    """Display total Streamlit page load time in the footer."""
+    start_time = time.perf_counter()
+
+    try:
+        yield
+    finally:
+        elapsed = time.perf_counter() - start_time
+        st.caption(f"Page loaded in {elapsed:.2f} seconds")
 
 
 def clean_mta_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -192,8 +404,10 @@ def get_weekday_weekend_comparison(df: pd.DataFrame, year: int = None) -> pd.Dat
     return pd.DataFrame(rows)
 
 
-def plot_ridership_recovery(df: pd.DataFrame) -> plt.Figure:
+def plot_ridership_recovery(df: pd.DataFrame):
     """Plot MTA ridership recovery by transit mode as % of pre-pandemic levels."""
+    import matplotlib.pyplot as plt
+
     required_cols = [
         "date",
         "subways_pct_of_comparable_pre_pandemic_day",

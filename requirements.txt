@@ -8,4 +8,6 @@ matplotlib
 pandera
 pandas-gbq
 google-cloud-bigquery
+google-cloud-bigquery-storage
 db-dtypes
+pydata-google-auth
