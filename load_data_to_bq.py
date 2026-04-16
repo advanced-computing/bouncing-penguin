@@ -2,13 +2,15 @@
 
 import argparse
 from dataclasses import dataclass
+import json
+import os
 import sys
 
 import pandas as pd
 import pandas_gbq
-import pydata_google_auth
 import requests
 from google.cloud import bigquery
+from google.oauth2 import service_account
 
 PROJECT_ID = "sipa-adv-c-bouncing-penguin"
 DATASET_ID = "mta_data"
@@ -98,13 +100,23 @@ def parse_args() -> argparse.Namespace:
 
 
 def get_credentials():
-    """Get Google credentials with browser-based auth flow."""
-    print("Authenticating with Google... A browser window should open.")
-    print("If it doesn't, copy the URL shown below and open it manually.")
-    credentials = pydata_google_auth.get_user_credentials(
-        SCOPES,
-        auth_local_webserver=False,
-    )
+    """Get Google credentials from service account JSON or env var."""
+    sa_key = os.environ.get("GCP_SA_KEY")
+    if sa_key:
+        print("Using service account credentials from environment.")
+        info = json.loads(sa_key)
+        credentials = service_account.Credentials.from_service_account_info(
+            info, scopes=SCOPES
+        )
+    else:
+        import pydata_google_auth
+
+        print("Authenticating with Google... A browser window should open.")
+        print("If it doesn't, copy the URL shown below and open it manually.")
+        credentials = pydata_google_auth.get_user_credentials(
+            SCOPES,
+            auth_local_webserver=False,
+        )
     print("Authentication successful!")
     return credentials
 
