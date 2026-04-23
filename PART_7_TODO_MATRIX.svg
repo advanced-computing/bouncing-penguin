@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100" role="img" aria-labelledby="title desc">
+  <title id="title">Part 7 TODO Prioritization Matrix</title>
+  <desc id="desc">Impact and effort matrix for the remaining MTA Ridership Dashboard TODOs.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f8fafc; }
+      .axis { stroke: #334155; stroke-width: 4; }
+      .title { font: 700 44px Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 22px Arial, sans-serif; fill: #475569; }
+      .axis-label { font: 700 24px Arial, sans-serif; fill: #1e293b; }
+      .quad-title { font: 700 30px Arial, sans-serif; fill: #0f172a; }
+      .priority { font: 700 20px Arial, sans-serif; fill: #334155; }
+      .item { font: 400 22px Arial, sans-serif; fill: #1e293b; }
+      .note { font: 400 18px Arial, sans-serif; fill: #475569; }
+      .q1 { fill: #dcfce7; stroke: #22c55e; stroke-width: 3; }
+      .q2 { fill: #dbeafe; stroke: #2563eb; stroke-width: 3; }
+      .q3 { fill: #fef9c3; stroke: #eab308; stroke-width: 3; }
+      .q4 { fill: #fee2e2; stroke: #ef4444; stroke-width: 3; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1600" height="1100"/>
+
+  <text class="title" x="80" y="78">Part 7: TODO Prioritization Matrix</text>
+  <text class="subtitle" x="80" y="114">MTA Ridership Recovery Dashboard - impact vs. effort</text>
+
+  <text class="axis-label" x="122" y="178">High Impact</text>
+  <text class="axis-label" x="116" y="1010">Lower Impact</text>
+  <text class="axis-label" x="456" y="1045">Low Effort</text>
+  <text class="axis-label" x="1046" y="1045">Higher Effort</text>
+
+  <line class="axis" x1="220" y1="180" x2="220" y2="980"/>
+  <line class="axis" x1="220" y1="980" x2="1480" y2="980"/>
+  <line class="axis" x1="850" y1="180" x2="850" y2="980"/>
+  <line class="axis" x1="220" y1="580" x2="1480" y2="580"/>
+
+  <rect class="q1" x="250" y="210" width="570" height="340" rx="14"/>
+  <rect class="q2" x="880" y="210" width="570" height="340" rx="14"/>
+  <rect class="q3" x="250" y="610" width="570" height="340" rx="14"/>
+  <rect class="q4" x="880" y="610" width="570" height="340" rx="14"/>
+
+  <text class="quad-title" x="285" y="262">Do First</text>
+  <text class="priority" x="285" y="294">P0 / high impact, low effort</text>
+  <text class="item" x="285" y="334">
+    <tspan x="285" dy="0">- Verify successful Scheduled ETL Action</tspan>
+    <tspan x="285" dy="38">- Capture green run, logs, row counts, dates</tspan>
+    <tspan x="285" dy="38">- Keep service account keys out of git</tspan>
+    <tspan x="285" dy="38">- Add BigQuery freshness check to docs</tspan>
+  </text>
+
+  <text class="quad-title" x="915" y="262">Schedule Next</text>
+  <text class="priority" x="915" y="294">P1 / high impact, higher effort</text>
+  <text class="item" x="915" y="334">
+    <tspan x="915" dy="0">- Validate data before replacing tables</tspan>
+    <tspan x="915" dy="38">- Handle API pagination beyond 50,000 rows</tspan>
+    <tspan x="915" dy="38">- Add combined MTA + COVID analysis view</tspan>
+    <tspan x="915" dy="38">- Expand validation and tests for both datasets</tspan>
+  </text>
+
+  <text class="quad-title" x="285" y="662">Do If Time</text>
+  <text class="priority" x="285" y="694">P2 / lower impact, low effort</text>
+  <text class="item" x="285" y="734">
+    <tspan x="285" dy="0">- Link Part 6, Part 7, and diagram in README</tspan>
+    <tspan x="285" dy="38">- Add final dashboard screenshots or demo clip</tspan>
+    <tspan x="285" dy="38">- Rename notebook file to remove extra space</tspan>
+  </text>
+
+  <text class="quad-title" x="915" y="662">Defer / Parking Lot</text>
+  <text class="priority" x="915" y="694">P3 / lower impact, higher effort</text>
+  <text class="item" x="915" y="734">
+    <tspan x="915" dy="0">- Build ridership forecasting model</tspan>
+    <tspan x="915" dy="38">- Add many more external datasets</tspan>
+    <tspan x="915" dy="38">- Build full ETL monitoring dashboard</tspan>
+    <tspan x="915" dy="38">- Create admin UI for reruns or credentials</tspan>
+  </text>
+
+  <text class="note" x="80" y="1072">Prepared from current repo state on 2026-04-22. Detailed acceptance criteria are in PART_7_TODO_PRIORITIZATION.md.</text>
+</svg>
