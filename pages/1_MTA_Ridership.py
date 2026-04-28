@@ -17,6 +17,7 @@ def get_mta_page_columns(selected_services: list[str]) -> tuple[str, ...]:
 
 def main() -> None:
     st.title("MTA Daily Ridership Analysis")
+    st.caption("Default view loads only the latest 180 days for a faster deployed app.")
 
     selected_services = st.multiselect(
         "Select services",
@@ -35,35 +36,37 @@ def main() -> None:
         key="mta_page_time_window_v1",
     )
 
-    try:
-        if time_window == "Recent 180 days":
-            df = load_mta_data(columns=get_mta_page_columns(selected_services), lookback_days=180)
-        elif time_window == "Recent 365 days":
-            df = load_mta_data(columns=get_mta_page_columns(selected_services), lookback_days=365)
-        elif time_window == "Full history":
-            df = load_mta_data(columns=get_mta_page_columns(selected_services))
-        else:
-            today = date.today()
-            default_start = today - timedelta(days=180)
-            selected_dates = st.date_input(
-                "Date range",
-                value=(default_start, today),
-                min_value=MTA_MIN_DATE,
-                max_value=today,
-                key="mta_page_date_range_v3",
-            )
-            start_date = default_start
-            end_date = today
-            if len(selected_dates) == 2:
-                start_date, end_date = selected_dates
-            df = load_mta_data(
-                columns=get_mta_page_columns(selected_services),
-                start_date=str(start_date),
-                end_date=str(end_date),
-            )
-    except Exception as exc:
-        st.error(f"Failed to load MTA data from BigQuery: {exc}")
-        return
+    requested_columns = get_mta_page_columns(selected_services)
+    with st.spinner("Loading MTA data from BigQuery..."):
+        try:
+            if time_window == "Recent 180 days":
+                df = load_mta_data(columns=requested_columns, lookback_days=180)
+            elif time_window == "Recent 365 days":
+                df = load_mta_data(columns=requested_columns, lookback_days=365)
+            elif time_window == "Full history":
+                df = load_mta_data(columns=requested_columns)
+            else:
+                today = date.today()
+                default_start = today - timedelta(days=180)
+                selected_dates = st.date_input(
+                    "Date range",
+                    value=(default_start, today),
+                    min_value=MTA_MIN_DATE,
+                    max_value=today,
+                    key="mta_page_date_range_v3",
+                )
+                start_date = default_start
+                end_date = today
+                if isinstance(selected_dates, tuple) and len(selected_dates) == 2:
+                    start_date, end_date = selected_dates
+                df = load_mta_data(
+                    columns=requested_columns,
+                    start_date=str(start_date),
+                    end_date=str(end_date),
+                )
+        except Exception as exc:
+            st.error(f"Failed to load MTA data from BigQuery: {exc}")
+            return
 
     st.caption(
         "Source: BigQuery table `mta_data.daily_ridership` refreshed with `load_data_to_bq.py`."

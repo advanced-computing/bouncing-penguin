@@ -61,6 +61,7 @@ def _render_select_clause(columns: Iterable[str]) -> str:
     return ", ".join(f"`{column}`" for column in columns)
 
 
+@st.cache_data(show_spinner=False, persist="disk", ttl=60 * 60 * 12)
 def _get_table_columns(table_name: str) -> set[str]:
     client = get_bigquery_client()
     table = client.get_table(f"{PROJECT_ID}.{table_name}")
@@ -138,16 +139,11 @@ def _load_table(
         raise KeyError(f"No requested columns were found in BigQuery table {table_name}.")
 
     where_clause = ""
+    order_clause = f"ORDER BY `{order_by}`"
+    limit_clause = ""
     if lookback_days is not None:
-        where_clause = f"""
-        WHERE `{date_column}` BETWEEN (
-            SELECT DATE_SUB(MAX(`{date_column}`), INTERVAL {lookback_days} DAY)
-            FROM normalized
-        ) AND (
-            SELECT MAX(`{date_column}`)
-            FROM normalized
-        )
-        """
+        order_clause = f"ORDER BY `{date_column}` DESC"
+        limit_clause = f"LIMIT {lookback_days + 1}"
     elif start_date and end_date:
         where_clause = (
             f"\n        WHERE `{date_column}` BETWEEN '{start_date}' AND '{end_date}'"
@@ -162,10 +158,12 @@ def _load_table(
         SELECT *
         FROM normalized
         {where_clause}
-        ORDER BY `{order_by}`
+        {order_clause}
+        {limit_clause}
     """
     client = get_bigquery_client()
-    query_job = client.query(query)
+    job_config = bigquery.QueryJobConfig(use_query_cache=True)
+    query_job = client.query(query, job_config=job_config)
     return query_job.to_dataframe(create_bqstorage_client=False)
 
 

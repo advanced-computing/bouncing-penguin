@@ -12,6 +12,7 @@ def main() -> None:
     st.markdown(
         "This page uses BigQuery-hosted COVID case data to contextualize changes in MTA ridership."
     )
+    st.caption("Default view loads only the latest 180 days for a faster deployed app.")
 
     time_window = st.radio(
         "Time window",
@@ -20,31 +21,32 @@ def main() -> None:
         key="covid_page_time_window_v1",
     )
 
-    try:
-        if time_window == "Recent 180 days":
-            df = load_covid_data(lookback_days=180)
-        elif time_window == "Recent 365 days":
-            df = load_covid_data(lookback_days=365)
-        elif time_window == "Full history":
-            df = load_covid_data()
-        else:
-            today = date.today()
-            default_start = today - timedelta(days=180)
-            selected_dates = st.date_input(
-                "Date range",
-                value=(default_start, today),
-                min_value=COVID_MIN_DATE,
-                max_value=today,
-                key="covid_page_date_range_v3",
-            )
-            start_date = default_start
-            end_date = today
-            if len(selected_dates) == 2:
-                start_date, end_date = selected_dates
-            df = load_covid_data(start_date=str(start_date), end_date=str(end_date))
-    except Exception as exc:
-        st.error(f"Failed to load COVID data from BigQuery: {exc}")
-        return
+    with st.spinner("Loading COVID data from BigQuery..."):
+        try:
+            if time_window == "Recent 180 days":
+                df = load_covid_data(lookback_days=180)
+            elif time_window == "Recent 365 days":
+                df = load_covid_data(lookback_days=365)
+            elif time_window == "Full history":
+                df = load_covid_data()
+            else:
+                today = date.today()
+                default_start = today - timedelta(days=180)
+                selected_dates = st.date_input(
+                    "Date range",
+                    value=(default_start, today),
+                    min_value=COVID_MIN_DATE,
+                    max_value=today,
+                    key="covid_page_date_range_v3",
+                )
+                start_date = default_start
+                end_date = today
+                if isinstance(selected_dates, tuple) and len(selected_dates) == 2:
+                    start_date, end_date = selected_dates
+                df = load_covid_data(start_date=str(start_date), end_date=str(end_date))
+        except Exception as exc:
+            st.error(f"Failed to load COVID data from BigQuery: {exc}")
+            return
 
     st.caption("Source: BigQuery table `mta_data.nyc_covid_cases`.")
     st.write(

@@ -7,3 +7,6 @@ __pycache__/
 
 # Streamlit secrets
 .streamlit/secrets.toml
+
+# Local Google Cloud service account keys
+sipa-adv-c-bouncing-penguin-*.json

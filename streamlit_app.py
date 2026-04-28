@@ -2,7 +2,9 @@ from datetime import date, timedelta
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
+from plotly.subplots import make_subplots
 
 from utils import (
     MTA_MIN_DATE,
@@ -11,32 +13,98 @@ from utils import (
     get_holiday_df,
     get_latest_recovery,
     get_weekday_weekend_comparison,
+    load_covid_data,
     load_mta_data,
 )
 
 st.set_page_config(page_title="MTA Ridership Dashboard", layout="wide")
 
+MODE_COLORS = {
+    "Subway": "#2563eb",
+    "Bus": "#f97316",
+    "LIRR": "#16a34a",
+    "Metro-North": "#9333ea",
+    "Bridges & Tunnels": "#dc2626",
+}
 
-def get_dashboard_columns(view: str, selected_modes: list[str]) -> tuple[str, ...]:
-    columns = {"date"}
 
-    if view == "Overview":
-        columns.add(TRANSIT_MODES["Subway"]["ridership"])
-        for mode in selected_modes:
-            mode_columns = TRANSIT_MODES.get(mode, {})
-            columns.update(mode_columns.values())
-        for mode_columns in TRANSIT_MODES.values():
-            columns.add(mode_columns["recovery"])
-    elif view == "Comparison":
-        for mode_columns in TRANSIT_MODES.values():
-            columns.add(mode_columns["recovery"])
-    elif view == "Calendar":
-        for mode_columns in TRANSIT_MODES.values():
-            columns.add(mode_columns["recovery"])
-    else:
-        columns.add(TRANSIT_MODES["Subway"]["recovery"])
+def get_dashboard_columns(selected_modes: list[str]) -> tuple[str, ...]:
+    columns = {"date", TRANSIT_MODES["Subway"]["ridership"]}
+
+    for mode_columns in TRANSIT_MODES.values():
+        columns.add(mode_columns["recovery"])
+
+    for mode in selected_modes:
+        mode_columns = TRANSIT_MODES.get(mode, {})
+        columns.update(mode_columns.values())
 
     return tuple(columns)
+
+
+def get_date_bounds(time_window: str) -> tuple[str | None, str | None, int | None]:
+    if time_window == "Recent 180 days":
+        return None, None, 180
+    if time_window == "Recent 365 days":
+        return None, None, 365
+    if time_window == "Full history":
+        return None, None, None
+
+    today = date.today()
+    default_start = today - timedelta(days=180)
+    selected_dates = st.sidebar.date_input(
+        "Date range",
+        value=(default_start, today),
+        min_value=MTA_MIN_DATE,
+        max_value=today,
+        key="dashboard_date_range_v4",
+    )
+    start_date = default_start
+    end_date = today
+    if isinstance(selected_dates, tuple) and len(selected_dates) == 2:
+        start_date, end_date = selected_dates
+    return str(start_date), str(end_date), None
+
+
+def render_data_status(mta_df: pd.DataFrame, covid_df: pd.DataFrame) -> None:
+    if mta_df.empty:
+        return
+
+    latest_mta = mta_df["date"].max().date()
+    mta_range = f"{mta_df['date'].min().date()} to {latest_mta}"
+
+    status_columns = st.columns(4)
+    status_columns[0].metric("Latest MTA Date", str(latest_mta))
+    status_columns[1].metric("MTA Rows Loaded", f"{len(mta_df):,}")
+    status_columns[2].metric("Selected Range", mta_range)
+
+    if covid_df.empty:
+        status_columns[3].metric("Latest COVID Date", "Unavailable")
+    else:
+        latest_covid = covid_df["date_of_interest"].max().date()
+        status_columns[3].metric("Latest COVID Date", str(latest_covid))
+
+
+def tidy_time_series(
+    df: pd.DataFrame,
+    selected_modes: list[str],
+    value_type: str,
+    rolling_window: int,
+) -> pd.DataFrame:
+    rows = []
+    for mode in selected_modes:
+        column = TRANSIT_MODES[mode][value_type]
+        if column not in df.columns:
+            continue
+
+        series = df[["date", column]].copy()
+        series["Transit Mode"] = mode
+        series["Value"] = series[column].rolling(rolling_window).mean()
+        rows.append(series[["date", "Transit Mode", "Value"]])
+
+    if not rows:
+        return pd.DataFrame(columns=["date", "Transit Mode", "Value"])
+
+    return pd.concat(rows, ignore_index=True).dropna(subset=["Value"])
 
 
 def render_kpis(filtered: pd.DataFrame) -> None:
@@ -61,19 +129,35 @@ def render_recovery_chart(
 ) -> None:
     st.subheader("Recovery Trend Over Time")
 
-    chart_df = filtered[["date"]].copy()
-    for mode in selected_modes:
-        column = TRANSIT_MODES[mode]["recovery"]
-        if column not in filtered.columns:
-            continue
-        chart_df[mode] = filtered[column].rolling(rolling_window).mean()
-
-    chart_df = chart_df.set_index("date").dropna(how="all")
+    chart_df = tidy_time_series(filtered, selected_modes, "recovery", rolling_window)
     if chart_df.empty:
         st.info("No recovery series are available for the selected transit modes.")
         return
 
-    st.line_chart(chart_df, height=320)
+    chart_df["Recovery Percent"] = chart_df["Value"] * 100
+    fig = px.line(
+        chart_df,
+        x="date",
+        y="Recovery Percent",
+        color="Transit Mode",
+        color_discrete_map=MODE_COLORS,
+        markers=False,
+    )
+    fig.add_hline(
+        y=100,
+        line_dash="dash",
+        line_color="#64748b",
+        annotation_text="Pre-pandemic baseline",
+    )
+    fig.update_layout(
+        height=340,
+        margin=dict(l=0, r=0, t=10, b=0),
+        xaxis_title="Date",
+        yaxis_title="Recovery Rate",
+        legend_title_text="",
+    )
+    fig.update_yaxes(ticksuffix="%", rangemode="tozero")
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
     st.caption("The pre-pandemic baseline is 100% recovery.")
 
 
@@ -84,19 +168,27 @@ def render_total_chart(
 ) -> None:
     st.subheader("Total Daily Ridership")
 
-    chart_df = filtered[["date"]].copy()
-    for mode in selected_modes:
-        column = TRANSIT_MODES[mode]["ridership"]
-        if column not in filtered.columns:
-            continue
-        chart_df[mode] = filtered[column].rolling(rolling_window).mean()
-
-    chart_df = chart_df.set_index("date").dropna(how="all")
+    chart_df = tidy_time_series(filtered, selected_modes, "ridership", rolling_window)
     if chart_df.empty:
         st.info("No ridership series are available for the selected transit modes.")
         return
 
-    st.line_chart(chart_df, height=320)
+    fig = px.line(
+        chart_df,
+        x="date",
+        y="Value",
+        color="Transit Mode",
+        color_discrete_map=MODE_COLORS,
+        markers=False,
+    )
+    fig.update_layout(
+        height=340,
+        margin=dict(l=0, r=0, t=10, b=0),
+        xaxis_title="Date",
+        yaxis_title="Daily Ridership / Traffic",
+        legend_title_text="",
+    )
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 
 def render_subway_day_type_summary(filtered: pd.DataFrame) -> None:
@@ -113,9 +205,22 @@ def render_subway_day_type_summary(filtered: pd.DataFrame) -> None:
         summary.groupby("Day Type")[subway_column]
         .mean()
         .reset_index()
-        .set_index("Day Type")
     )
-    st.bar_chart(averages, height=240)
+    fig = px.bar(
+        averages,
+        x="Day Type",
+        y=subway_column,
+        color="Day Type",
+        color_discrete_map={"Weekday": "#2563eb", "Weekend": "#f97316"},
+    )
+    fig.update_layout(
+        height=260,
+        margin=dict(l=0, r=0, t=10, b=0),
+        xaxis_title="",
+        yaxis_title="Average Subway Ridership",
+        showlegend=False,
+    )
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 
 def render_mode_recovery_summary(filtered: pd.DataFrame) -> None:
@@ -132,8 +237,24 @@ def render_mode_recovery_summary(filtered: pd.DataFrame) -> None:
         st.info("No recovery summary is available for the current dataset.")
         return
 
-    summary_df = pd.DataFrame(rows).set_index("Mode")
-    st.bar_chart(summary_df, height=240)
+    summary_df = pd.DataFrame(rows)
+    summary_df["Recovery Percent"] = summary_df["Recovery"] * 100
+    fig = px.bar(
+        summary_df,
+        x="Mode",
+        y="Recovery Percent",
+        color="Mode",
+        color_discrete_map=MODE_COLORS,
+    )
+    fig.update_layout(
+        height=260,
+        margin=dict(l=0, r=0, t=10, b=0),
+        xaxis_title="",
+        yaxis_title="Average Recovery",
+        showlegend=False,
+    )
+    fig.update_yaxes(ticksuffix="%", rangemode="tozero")
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 
 def render_weekday_weekend(filtered: pd.DataFrame) -> None:
@@ -144,6 +265,7 @@ def render_weekday_weekend(filtered: pd.DataFrame) -> None:
         "Select year for comparison",
         options=["All Years", *available_years],
         index=0,
+        key="weekday_weekend_year_v2",
     )
 
     year_value = None if selected_year == "All Years" else int(selected_year)
@@ -179,7 +301,7 @@ def render_weekday_weekend(filtered: pd.DataFrame) -> None:
         legend_title_text="",
     )
     comparison_fig.update_yaxes(ticksuffix="%", rangemode="tozero")
-    st.plotly_chart(comparison_fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(comparison_fig, width="stretch", config={"displayModeBar": False})
 
     st.markdown("**Monthly Weekend Minus Weekday Gap (Subway)**")
     subway_column = TRANSIT_MODES["Subway"]["recovery"]
@@ -212,7 +334,7 @@ def render_weekday_weekend(filtered: pd.DataFrame) -> None:
         coloraxis_showscale=False,
     )
     gap_fig.update_yaxes(ticksuffix="%", zeroline=True, zerolinewidth=1)
-    st.plotly_chart(gap_fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(gap_fig, width="stretch", config={"displayModeBar": False})
 
 
 def render_holiday_impact(filtered: pd.DataFrame) -> None:
@@ -224,6 +346,7 @@ def render_holiday_impact(filtered: pd.DataFrame) -> None:
         "Select holidays or events to highlight",
         options=holiday_names,
         default=["Thanksgiving", "Christmas", "Congestion Pricing Launch"],
+        key="event_holidays_v2",
     )
     if not selected_holidays:
         st.info("Choose at least one holiday or event to draw comparison lines.")
@@ -234,17 +357,44 @@ def render_holiday_impact(filtered: pd.DataFrame) -> None:
         st.info("Subway recovery data is not available in the current dataset.")
         return
 
-    series = filtered.set_index("date")[subway_column].rolling(7).mean().rename("Subway")
-    st.line_chart(series, height=320)
-
     selected_rows = holidays_df[holidays_df["holiday"].isin(selected_holidays)]
     visible_events = selected_rows[
         (selected_rows["date"] >= filtered["date"].min())
         & (selected_rows["date"] <= filtered["date"].max())
     ][["holiday", "date"]].copy()
+
+    series = filtered[["date", subway_column]].copy()
+    series["Subway Recovery Percent"] = series[subway_column].rolling(7).mean() * 100
+    fig = px.line(
+        series.dropna(subset=["Subway Recovery Percent"]),
+        x="date",
+        y="Subway Recovery Percent",
+        color_discrete_sequence=[MODE_COLORS["Subway"]],
+    )
+    for _, event in visible_events.iterrows():
+        fig.add_vline(x=event["date"], line_width=1, line_dash="dot", line_color="#475569")
+        fig.add_annotation(
+            x=event["date"],
+            y=1.03,
+            yref="paper",
+            text=event["holiday"],
+            showarrow=False,
+            textangle=-90,
+            font=dict(size=10),
+        )
+    fig.update_layout(
+        height=340,
+        margin=dict(l=0, r=0, t=35, b=0),
+        xaxis_title="Date",
+        yaxis_title="Subway Recovery",
+        showlegend=False,
+    )
+    fig.update_yaxes(ticksuffix="%", rangemode="tozero")
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
     if not visible_events.empty:
         visible_events["date"] = visible_events["date"].dt.strftime("%Y-%m-%d")
-        st.dataframe(visible_events, use_container_width=True, hide_index=True)
+        st.dataframe(visible_events, width="stretch", hide_index=True)
 
     impact_rows = []
     for _, row in selected_rows.iterrows():
@@ -272,7 +422,7 @@ def render_holiday_impact(filtered: pd.DataFrame) -> None:
         )
 
     if impact_rows:
-        st.dataframe(pd.DataFrame(impact_rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(impact_rows), width="stretch", hide_index=True)
 
 
 def render_yearly_recovery(filtered: pd.DataFrame) -> None:
@@ -314,7 +464,7 @@ def render_yearly_recovery(filtered: pd.DataFrame) -> None:
         legend_title_text="",
     )
     yearly_fig.update_yaxes(ticksuffix="%", rangemode="tozero")
-    st.plotly_chart(yearly_fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(yearly_fig, width="stretch", config={"displayModeBar": False})
 
 
 def render_heatmap(filtered: pd.DataFrame) -> None:
@@ -324,6 +474,7 @@ def render_heatmap(filtered: pd.DataFrame) -> None:
         "Select transit mode for heatmap",
         options=list(TRANSIT_MODES.keys()),
         index=0,
+        key="calendar_mode_v2",
     )
     recovery_column = TRANSIT_MODES[selected_mode]["recovery"]
     if recovery_column not in filtered.columns:
@@ -346,44 +497,168 @@ def render_heatmap(filtered: pd.DataFrame) -> None:
 
     st.dataframe(
         pivot_wide.style.format("{:.0%}").background_gradient(cmap="RdYlGn"),
-        use_container_width=True,
+        width="stretch",
+    )
+
+
+def build_covid_context_frame(
+    mta_df: pd.DataFrame,
+    covid_df: pd.DataFrame,
+    rolling_window: int,
+) -> pd.DataFrame:
+    subway_column = TRANSIT_MODES["Subway"]["recovery"]
+    mta_daily = mta_df[["date", subway_column]].copy()
+    mta_daily["Subway Recovery Percent"] = (
+        mta_daily[subway_column].rolling(rolling_window).mean() * 100
+    )
+    covid_daily = covid_df[["date_of_interest", "case_count"]].copy().rename(
+        columns={"date_of_interest": "date"}
+    )
+    covid_daily["COVID Cases"] = covid_daily["case_count"].rolling(rolling_window).mean()
+
+    return pd.merge(
+        mta_daily[["date", "Subway Recovery Percent"]],
+        covid_daily[["date", "COVID Cases"]],
+        on="date",
+        how="inner",
+    ).dropna()
+
+
+def render_covid_context(
+    mta_df: pd.DataFrame,
+    covid_df: pd.DataFrame,
+    rolling_window: int,
+) -> None:
+    st.subheader("COVID Cases and Subway Recovery")
+
+    subway_column = TRANSIT_MODES["Subway"]["recovery"]
+    if subway_column not in mta_df.columns:
+        st.info("Subway recovery data is not available for the current filter.")
+        return
+    if covid_df.empty or "case_count" not in covid_df.columns:
+        st.info("COVID case data is not available for the current filter.")
+        return
+
+    combined = build_covid_context_frame(mta_df, covid_df, rolling_window)
+    using_full_overlap = False
+    if combined.empty:
+        full_mta = load_mta_data(columns=("date", subway_column))
+        full_covid = load_covid_data()
+        combined = build_covid_context_frame(full_mta, full_covid, rolling_window)
+        using_full_overlap = True
+        if combined.empty:
+            st.info("No overlapping MTA and COVID dates are available.")
+            return
+
+    if using_full_overlap:
+        st.info(
+            "The selected range has no overlapping MTA and COVID dates, "
+            "so this tab shows the full historical overlap instead."
+        )
+
+    metric_cols = st.columns(3)
+    recent = combined.tail(30)
+    metric_cols[0].metric(
+        "Recent Subway Recovery",
+        f"{recent['Subway Recovery Percent'].mean():.0f}%",
+    )
+    metric_cols[1].metric(
+        "Recent COVID Cases",
+        f"{recent['COVID Cases'].mean():,.0f}",
+    )
+    correlation = combined["Subway Recovery Percent"].corr(combined["COVID Cases"])
+    metric_cols[2].metric("Series Correlation", f"{correlation:.2f}")
+
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig.add_trace(
+        go.Scatter(
+            x=combined["date"],
+            y=combined["Subway Recovery Percent"],
+            name="Subway recovery",
+            mode="lines",
+            line=dict(color=MODE_COLORS["Subway"], width=2),
+        ),
+        secondary_y=False,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=combined["date"],
+            y=combined["COVID Cases"],
+            name="COVID cases",
+            mode="lines",
+            line=dict(color="#dc2626", width=2),
+        ),
+        secondary_y=True,
+    )
+    fig.update_layout(
+        height=380,
+        margin=dict(l=0, r=0, t=10, b=0),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+    )
+    fig.update_xaxes(title_text="Date")
+    fig.update_yaxes(title_text="Subway Recovery", ticksuffix="%", secondary_y=False)
+    fig.update_yaxes(title_text="COVID Cases", secondary_y=True)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+    st.caption(
+        "This view directly connects the second dataset to the main research question "
+        "by putting COVID case trends and subway recovery on the same timeline."
     )
 
 
 def render_dashboard(
-    df: pd.DataFrame,
-    view: str,
+    mta_df: pd.DataFrame,
+    covid_df: pd.DataFrame,
     selected_modes: list[str],
     rolling_window: int,
 ) -> None:
     st.sidebar.header("Filters")
     st.sidebar.caption("Fast default: recent 180 days. Expand the range only when needed.")
 
-    if df.empty:
+    if mta_df.empty:
         st.warning("No data is available for the current filters.")
         return
 
-    st.caption("Sections are split to keep each page load fast while preserving the full analysis.")
+    section = st.radio(
+        "Dashboard section",
+        ["Overview", "Comparison", "Calendar", "Events", "COVID Context"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="dashboard_section_fast_v1",
+    )
 
-    if view == "Overview":
-        render_kpis(df)
+    st.caption(
+        "Only the selected section is rendered, which keeps the deployed app responsive."
+    )
+
+    if section == "Overview":
+        render_kpis(mta_df)
         st.markdown("---")
-        render_recovery_chart(df, selected_modes, rolling_window)
-        render_total_chart(df, selected_modes, rolling_window)
-        render_subway_day_type_summary(df)
-        render_mode_recovery_summary(df)
-    elif view == "Comparison":
-        render_weekday_weekend(df)
-        render_yearly_recovery(df)
-    elif view == "Calendar":
-        render_heatmap(df)
+        chart_left, chart_right = st.columns(2)
+        with chart_left:
+            render_recovery_chart(mta_df, selected_modes, rolling_window)
+        with chart_right:
+            render_total_chart(mta_df, selected_modes, rolling_window)
+        summary_left, summary_right = st.columns(2)
+        with summary_left:
+            render_subway_day_type_summary(mta_df)
+        with summary_right:
+            render_mode_recovery_summary(mta_df)
+    elif section == "Comparison":
+        render_weekday_weekend(mta_df)
+        render_yearly_recovery(mta_df)
+    elif section == "Calendar":
+        render_heatmap(mta_df)
+    elif section == "Events":
+        render_holiday_impact(mta_df)
     else:
-        render_holiday_impact(df)
+        render_covid_context(mta_df, covid_df, rolling_window)
 
     st.markdown("---")
     st.caption(
         "Data source: BigQuery tables "
-        "`mta_data.daily_ridership` and supporting holiday metadata in the app."
+        "`mta_data.daily_ridership`, `mta_data.nyc_covid_cases`, "
+        "and supporting holiday metadata in the app."
     )
 
 
@@ -439,12 +714,6 @@ def main() -> None:
 
     page = st.radio("View", ["Dashboard", "Proposal"], horizontal=True)
     if page == "Dashboard":
-        view = st.radio(
-            "Dashboard section",
-            options=["Overview", "Comparison", "Calendar", "Events"],
-            horizontal=True,
-            key="dashboard_section_v2",
-        )
         selected_modes = st.sidebar.multiselect(
             "Transit modes",
             options=list(TRANSIT_MODES.keys()),
@@ -465,38 +734,31 @@ def main() -> None:
             key="dashboard_time_window_v1",
         )
 
-        requested_columns = get_dashboard_columns(view, selected_modes)
+        requested_columns = get_dashboard_columns(selected_modes)
         try:
-            if time_window == "Recent 180 days":
-                df = load_mta_data(columns=requested_columns, lookback_days=180)
-            elif time_window == "Recent 365 days":
-                df = load_mta_data(columns=requested_columns, lookback_days=365)
-            elif time_window == "Full history":
-                df = load_mta_data(columns=requested_columns)
-            else:
-                today = date.today()
-                default_start = today - timedelta(days=180)
-                selected_dates = st.sidebar.date_input(
-                    "Date range",
-                    value=(default_start, today),
-                    min_value=MTA_MIN_DATE,
-                    max_value=today,
-                    key="dashboard_date_range_v3",
-                )
-                start_date = default_start
-                end_date = today
-                if len(selected_dates) == 2:
-                    start_date, end_date = selected_dates
-                df = load_mta_data(
+            start_date, end_date, lookback_days = get_date_bounds(time_window)
+            if lookback_days is not None:
+                mta_df = load_mta_data(
                     columns=requested_columns,
-                    start_date=str(start_date),
-                    end_date=str(end_date),
+                    lookback_days=lookback_days,
                 )
+                covid_df = load_covid_data(lookback_days=lookback_days)
+            elif start_date and end_date:
+                mta_df = load_mta_data(
+                    columns=requested_columns,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+                covid_df = load_covid_data(start_date=start_date, end_date=end_date)
+            else:
+                mta_df = load_mta_data(columns=requested_columns)
+                covid_df = load_covid_data()
         except Exception as exc:
             st.error(f"Failed to load data from BigQuery: {exc}")
             return
 
-        render_dashboard(df, view, selected_modes, rolling_window)
+        render_data_status(mta_df, covid_df)
+        render_dashboard(mta_df, covid_df, selected_modes, rolling_window)
     else:
         render_proposal()
 
