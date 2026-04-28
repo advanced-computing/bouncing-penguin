@@ -14,6 +14,7 @@ from google.oauth2 import service_account
 
 PROJECT_ID = "sipa-adv-c-bouncing-penguin"
 DATASET_ID = "mta_data"
+API_ROW_LIMIT = 50000
 
 SCOPES = [
     "https://www.googleapis.com/auth/bigquery",
@@ -28,6 +29,9 @@ class DataSource:
     order_column: str
     date_columns: tuple[str, ...]
     numeric_columns: tuple[str, ...]
+    required_columns: tuple[str, ...]
+    minimum_rows: int
+    minimum_date: str
 
 
 DATA_SOURCES = {
@@ -53,6 +57,15 @@ DATA_SOURCES = {
             "staten_island_railway_total_estimated_ridership",
             "staten_island_railway_pct_of_comparable_pre_pandemic_day",
         ),
+        required_columns=(
+            "date",
+            "subways_total_estimated_ridership",
+            "subways_pct_of_comparable_pre_pandemic_day",
+            "buses_total_estimated_ridership",
+            "buses_pct_of_comparable_pre_pandemic_day",
+        ),
+        minimum_rows=1000,
+        minimum_date="2020-03-01",
     ),
     "covid": DataSource(
         name="NYC COVID cases",
@@ -72,6 +85,9 @@ DATA_SOURCES = {
             "qn_case_count",
             "si_case_count",
         ),
+        required_columns=("date_of_interest", "case_count"),
+        minimum_rows=1000,
+        minimum_date="2020-03-01",
     ),
 }
 
@@ -129,13 +145,58 @@ def ensure_dataset_exists(credentials) -> None:
     client.create_dataset(dataset, exists_ok=True)
 
 
+def validate_source_frame(df: pd.DataFrame, source: DataSource) -> None:
+    """Fail before replacing BigQuery when a source pull looks incomplete."""
+    missing = [column for column in source.required_columns if column not in df.columns]
+    if missing:
+        raise RuntimeError(f"{source.name} is missing required columns: {missing}")
+
+    if len(df) < source.minimum_rows:
+        raise RuntimeError(
+            f"{source.name} returned only {len(df)} rows; "
+            f"expected at least {source.minimum_rows}."
+        )
+
+    if len(df) >= API_ROW_LIMIT:
+        raise RuntimeError(
+            f"{source.name} hit the {API_ROW_LIMIT:,}-row API limit. "
+            "Add pagination before replacing the BigQuery table."
+        )
+
+    date_column = source.date_columns[0]
+    if df[date_column].isna().any():
+        raise RuntimeError(f"{source.name} has null values in {date_column}.")
+
+    expected_min = pd.Timestamp(source.minimum_date)
+    actual_min = df[date_column].min()
+    if actual_min > expected_min:
+        raise RuntimeError(
+            f"{source.name} starts at {actual_min.date()}, "
+            f"but should include data from {expected_min.date()}."
+        )
+
+    actual_max = df[date_column].max()
+    if actual_max <= actual_min:
+        raise RuntimeError(f"{source.name} does not cover a usable date range.")
+
+    bad_numeric_columns = [
+        column
+        for column in source.required_columns
+        if column in source.numeric_columns and df[column].isna().all()
+    ]
+    if bad_numeric_columns:
+        raise RuntimeError(
+            f"{source.name} has all-null required numeric columns: {bad_numeric_columns}"
+        )
+
+
 def fetch_source(source: DataSource) -> pd.DataFrame:
     """Pull a dataset from an NYC Open Data endpoint."""
     print(f"Fetching {source.name} from {source.api_url} ...")
     sys.stdout.flush()
     response = requests.get(
         source.api_url,
-        params={"$limit": 50000, "$order": source.order_column},
+        params={"$limit": API_ROW_LIMIT, "$order": source.order_column},
         timeout=60,
     )
     response.raise_for_status()
@@ -154,6 +215,8 @@ def fetch_source(source: DataSource) -> pd.DataFrame:
     for column in source.numeric_columns:
         if column in df.columns:
             df[column] = pd.to_numeric(df[column], errors="coerce")
+
+    validate_source_frame(df, source)
 
     date_column = source.date_columns[0]
     print(

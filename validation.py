@@ -1,5 +1,13 @@
 import pandera as pa
 
+MTA_RENAME_MAP = {
+    "subways_of_comparable_pre_pandemic_day": "subways_pct_of_comparable_pre_pandemic_day",
+    "buses_of_comparable_pre_pandemic_day": "buses_pct_of_comparable_pre_pandemic_day",
+    "lirr_of_comparable_pre_pandemic_day": "lirr_pct_of_comparable_pre_pandemic_day",
+    "metro_north_of_comparable_pre_pandemic_day": "metro_north_pct_of_comparable_pre_pandemic_day",
+    "bridges_and_tunnels_of_comparable_pre_pandemic_day": "bridges_and_tunnels_pct_of_comparable_pre_pandemic_day",
+}
+
 # Schema for MTA Daily Ridership Data
 mta_schema = pa.DataFrameSchema(
     {
@@ -15,7 +23,7 @@ mta_schema = pa.DataFrameSchema(
             checks=pa.Check.greater_than_or_equal_to(0),
             description="Total estimated subway ridership",
         ),
-        "subways_of_comparable_pre_pandemic_day": pa.Column(
+        "subways_pct_of_comparable_pre_pandemic_day": pa.Column(
             float,
             nullable=True,
             checks=[
@@ -30,7 +38,7 @@ mta_schema = pa.DataFrameSchema(
             checks=pa.Check.greater_than_or_equal_to(0),
             description="Total estimated bus ridership",
         ),
-        "buses_of_comparable_pre_pandemic_day": pa.Column(
+        "buses_pct_of_comparable_pre_pandemic_day": pa.Column(
             float,
             nullable=True,
             checks=[
@@ -45,7 +53,7 @@ mta_schema = pa.DataFrameSchema(
             checks=pa.Check.greater_than_or_equal_to(0),
             description="Total estimated LIRR ridership",
         ),
-        "lirr_of_comparable_pre_pandemic_day": pa.Column(
+        "lirr_pct_of_comparable_pre_pandemic_day": pa.Column(
             float,
             nullable=True,
             checks=[
@@ -60,7 +68,7 @@ mta_schema = pa.DataFrameSchema(
             checks=pa.Check.greater_than_or_equal_to(0),
             description="Total estimated Metro-North ridership",
         ),
-        "metro_north_of_comparable_pre_pandemic_day": pa.Column(
+        "metro_north_pct_of_comparable_pre_pandemic_day": pa.Column(
             float,
             nullable=True,
             checks=[
@@ -75,7 +83,7 @@ mta_schema = pa.DataFrameSchema(
             checks=pa.Check.greater_than_or_equal_to(0),
             description="Total bridges and tunnels traffic",
         ),
-        "bridges_and_tunnels_of_comparable_pre_pandemic_day": pa.Column(
+        "bridges_and_tunnels_pct_of_comparable_pre_pandemic_day": pa.Column(
             float,
             nullable=True,
             checks=[
@@ -91,4 +99,5 @@ mta_schema = pa.DataFrameSchema(
 
 def validate_mta_data(df):
     """Validate MTA ridership dataframe against schema."""
-    return mta_schema.validate(df)
+    normalized = df.rename(columns=MTA_RENAME_MAP)
+    return mta_schema.validate(normalized)

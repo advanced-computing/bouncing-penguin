@@ -26,6 +26,27 @@ def test_valid_data():
     assert len(result) == 2
 
 
+def test_valid_current_column_names():
+    """Test that current _pct_ recovery column names pass validation."""
+    df = pd.DataFrame(
+        {
+            "date": ["2020-03-01"],
+            "subways_total_estimated_ridership": [1000000.0],
+            "subways_pct_of_comparable_pre_pandemic_day": [0.5],
+            "buses_total_estimated_ridership": [500000.0],
+            "buses_pct_of_comparable_pre_pandemic_day": [0.6],
+            "lirr_total_estimated_ridership": [100000.0],
+            "lirr_pct_of_comparable_pre_pandemic_day": [0.4],
+            "metro_north_total_estimated_ridership": [80000.0],
+            "metro_north_pct_of_comparable_pre_pandemic_day": [0.35],
+            "bridges_and_tunnels_total_traffic": [700000.0],
+            "bridges_and_tunnels_pct_of_comparable_pre_pandemic_day": [0.9],
+        }
+    )
+    result = validate_mta_data(df)
+    assert len(result) == 1
+
+
 def test_negative_ridership_fails():
     """Test that negative ridership values fail validation."""
     df = pd.DataFrame(
