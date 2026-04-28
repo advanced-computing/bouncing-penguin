@@ -157,7 +157,7 @@ def render_recovery_chart(
         legend_title_text="",
     )
     fig.update_yaxes(ticksuffix="%", rangemode="tozero")
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
     st.caption("The pre-pandemic baseline is 100% recovery.")
 
 
@@ -188,7 +188,7 @@ def render_total_chart(
         yaxis_title="Daily Ridership / Traffic",
         legend_title_text="",
     )
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 
 def render_subway_day_type_summary(filtered: pd.DataFrame) -> None:
@@ -220,7 +220,7 @@ def render_subway_day_type_summary(filtered: pd.DataFrame) -> None:
         yaxis_title="Average Subway Ridership",
         showlegend=False,
     )
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 
 def render_mode_recovery_summary(filtered: pd.DataFrame) -> None:
@@ -254,7 +254,7 @@ def render_mode_recovery_summary(filtered: pd.DataFrame) -> None:
         showlegend=False,
     )
     fig.update_yaxes(ticksuffix="%", rangemode="tozero")
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 
 def render_weekday_weekend(filtered: pd.DataFrame) -> None:
@@ -301,7 +301,7 @@ def render_weekday_weekend(filtered: pd.DataFrame) -> None:
         legend_title_text="",
     )
     comparison_fig.update_yaxes(ticksuffix="%", rangemode="tozero")
-    st.plotly_chart(comparison_fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(comparison_fig, width="stretch", config={"displayModeBar": False})
 
     st.markdown("**Monthly Weekend Minus Weekday Gap (Subway)**")
     subway_column = TRANSIT_MODES["Subway"]["recovery"]
@@ -334,7 +334,7 @@ def render_weekday_weekend(filtered: pd.DataFrame) -> None:
         coloraxis_showscale=False,
     )
     gap_fig.update_yaxes(ticksuffix="%", zeroline=True, zerolinewidth=1)
-    st.plotly_chart(gap_fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(gap_fig, width="stretch", config={"displayModeBar": False})
 
 
 def render_holiday_impact(filtered: pd.DataFrame) -> None:
@@ -390,11 +390,11 @@ def render_holiday_impact(filtered: pd.DataFrame) -> None:
         showlegend=False,
     )
     fig.update_yaxes(ticksuffix="%", rangemode="tozero")
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
     if not visible_events.empty:
         visible_events["date"] = visible_events["date"].dt.strftime("%Y-%m-%d")
-        st.dataframe(visible_events, use_container_width=True, hide_index=True)
+        st.dataframe(visible_events, width="stretch", hide_index=True)
 
     impact_rows = []
     for _, row in selected_rows.iterrows():
@@ -422,7 +422,7 @@ def render_holiday_impact(filtered: pd.DataFrame) -> None:
         )
 
     if impact_rows:
-        st.dataframe(pd.DataFrame(impact_rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(impact_rows), width="stretch", hide_index=True)
 
 
 def render_yearly_recovery(filtered: pd.DataFrame) -> None:
@@ -464,7 +464,7 @@ def render_yearly_recovery(filtered: pd.DataFrame) -> None:
         legend_title_text="",
     )
     yearly_fig.update_yaxes(ticksuffix="%", rangemode="tozero")
-    st.plotly_chart(yearly_fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(yearly_fig, width="stretch", config={"displayModeBar": False})
 
 
 def render_heatmap(filtered: pd.DataFrame) -> None:
@@ -497,7 +497,7 @@ def render_heatmap(filtered: pd.DataFrame) -> None:
 
     st.dataframe(
         pivot_wide.style.format("{:.0%}").background_gradient(cmap="RdYlGn"),
-        use_container_width=True,
+        width="stretch",
     )
 
 
@@ -598,7 +598,7 @@ def render_covid_context(
     fig.update_xaxes(title_text="Date")
     fig.update_yaxes(title_text="Subway Recovery", ticksuffix="%", secondary_y=False)
     fig.update_yaxes(title_text="COVID Cases", secondary_y=True)
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
     st.caption(
         "This view directly connects the second dataset to the main research question "
