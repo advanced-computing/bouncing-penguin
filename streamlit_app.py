@@ -619,16 +619,19 @@ def render_dashboard(
         st.warning("No data is available for the current filters.")
         return
 
+    section = st.radio(
+        "Dashboard section",
+        ["Overview", "Comparison", "Calendar", "Events", "COVID Context"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="dashboard_section_fast_v1",
+    )
+
     st.caption(
-        "Use the tabs below to move from headline recovery metrics into comparison, "
-        "calendar, event, and COVID-context analysis."
+        "Only the selected section is rendered, which keeps the deployed app responsive."
     )
 
-    overview_tab, comparison_tab, calendar_tab, events_tab, covid_tab = st.tabs(
-        ["Overview", "Comparison", "Calendar", "Events", "COVID Context"]
-    )
-
-    with overview_tab:
+    if section == "Overview":
         render_kpis(mta_df)
         st.markdown("---")
         chart_left, chart_right = st.columns(2)
@@ -641,18 +644,14 @@ def render_dashboard(
             render_subway_day_type_summary(mta_df)
         with summary_right:
             render_mode_recovery_summary(mta_df)
-
-    with comparison_tab:
+    elif section == "Comparison":
         render_weekday_weekend(mta_df)
         render_yearly_recovery(mta_df)
-
-    with calendar_tab:
+    elif section == "Calendar":
         render_heatmap(mta_df)
-
-    with events_tab:
+    elif section == "Events":
         render_holiday_impact(mta_df)
-
-    with covid_tab:
+    else:
         render_covid_context(mta_df, covid_df, rolling_window)
 
     st.markdown("---")
