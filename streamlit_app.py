@@ -65,17 +65,24 @@ def render_data_status(mta_df: pd.DataFrame, covid_df: pd.DataFrame) -> None:
 
     latest_mta = mta_df["date"].max().date()
     days_behind = (date.today() - latest_mta).days
-    freshness = (
-        f"Data current as of **{latest_mta}** "
-        f"({days_behind} day{'s' if days_behind != 1 else ''} behind today)"
-    )
-    if days_behind <= 3:
-        st.success(f"🟢 {freshness}")
+    upstream_frozen_date = date(2025, 1, 9)
+
+    if latest_mta >= upstream_frozen_date:
+        st.info(
+            f"ℹ️ Latest MTA data: **{latest_mta}**. The upstream "
+            "[NY Open Data MTA Daily Ridership feed]"
+            "(https://data.ny.gov/Transportation/MTA-Daily-Ridership-Data-Beginning-2020/vxuj-8kew) "
+            f"stopped publishing new rows after **{upstream_frozen_date}**, so the daily "
+            "refresh workflow runs successfully but cannot pull anything newer from the source."
+        )
+    elif days_behind <= 3:
+        st.success(f"🟢 Data current as of **{latest_mta}** ({days_behind} days behind today)")
     elif days_behind <= 14:
-        st.info(f"🟡 {freshness}")
+        st.info(f"🟡 Data current as of **{latest_mta}** ({days_behind} days behind today)")
     else:
         st.warning(
-            f"🔴 {freshness}. The daily refresh workflow may need attention."
+            f"🔴 Data current as of **{latest_mta}** ({days_behind} days behind today). "
+            "The daily refresh workflow may need attention."
         )
 
     mta_range = f"{mta_df['date'].min().date()} to {latest_mta}"
