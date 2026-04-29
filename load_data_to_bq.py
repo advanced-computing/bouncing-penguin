@@ -57,13 +57,7 @@ DATA_SOURCES = {
             "staten_island_railway_total_estimated_ridership",
             "staten_island_railway_pct_of_comparable_pre_pandemic_day",
         ),
-        required_columns=(
-            "date",
-            "subways_total_estimated_ridership",
-            "subways_pct_of_comparable_pre_pandemic_day",
-            "buses_total_estimated_ridership",
-            "buses_pct_of_comparable_pre_pandemic_day",
-        ),
+        required_columns=("date",),
         minimum_rows=1000,
         minimum_date="2020-03-01",
     ),
@@ -85,7 +79,7 @@ DATA_SOURCES = {
             "qn_case_count",
             "si_case_count",
         ),
-        required_columns=("date_of_interest", "case_count"),
+        required_columns=("date_of_interest",),
         minimum_rows=1000,
         minimum_date="2020-03-01",
     ),
@@ -99,6 +93,9 @@ MTA_RENAME_MAP = {
     "bridges_and_tunnels_of_comparable_pre_pandemic_day": "bridges_and_tunnels_pct_of_comparable_pre_pandemic_day",
     "access_a_ride_of_comparable_pre_pandemic_day": "access_a_ride_pct_of_comparable_pre_pandemic_day",
     "staten_island_railway_of_comparable_pre_pandemic_day": "staten_island_railway_pct_of_comparable_pre_pandemic_day",
+    # Upstream typo workaround: the API returns "ridersip" (missing the trailing
+    # "h") for bus totals. Map it to the canonical name so the column survives.
+    "buses_total_estimated_ridersip": "buses_total_estimated_ridership",
 }
 
 
@@ -146,10 +143,19 @@ def ensure_dataset_exists(credentials) -> None:
 
 
 def validate_source_frame(df: pd.DataFrame, source: DataSource) -> None:
-    """Fail before replacing BigQuery when a source pull looks incomplete."""
-    missing = [column for column in source.required_columns if column not in df.columns]
-    if missing:
-        raise RuntimeError(f"{source.name} is missing required columns: {missing}")
+    """Sanity-check a source pull before replacing the BigQuery table.
+
+    Hard failures (raise) are reserved for things that would corrupt the table:
+    missing date column, far too few rows, hitting the API page cap, or data
+    that does not extend back to the expected start date. Missing optional
+    numeric columns only emit a warning so a single dropped upstream column
+    cannot freeze the entire table.
+    """
+    missing_required = [column for column in source.required_columns if column not in df.columns]
+    if missing_required:
+        raise RuntimeError(
+            f"{source.name} is missing required columns: {missing_required}"
+        )
 
     if len(df) < source.minimum_rows:
         raise RuntimeError(
@@ -179,15 +185,18 @@ def validate_source_frame(df: pd.DataFrame, source: DataSource) -> None:
     if actual_max <= actual_min:
         raise RuntimeError(f"{source.name} does not cover a usable date range.")
 
-    bad_numeric_columns = [
-        column
-        for column in source.required_columns
-        if column in source.numeric_columns and df[column].isna().all()
-    ]
-    if bad_numeric_columns:
-        raise RuntimeError(
-            f"{source.name} has all-null required numeric columns: {bad_numeric_columns}"
-        )
+    for column in source.numeric_columns:
+        if column not in df.columns:
+            print(
+                f"WARNING: column '{column}' missing from {source.name} API response, "
+                "will be skipped."
+            )
+            continue
+        if df[column].isna().all():
+            print(
+                f"WARNING: column '{column}' is all-null in {source.name} API response, "
+                "will be uploaded as nulls."
+            )
 
 
 def fetch_source(source: DataSource) -> pd.DataFrame:
@@ -229,8 +238,19 @@ def fetch_source(source: DataSource) -> pd.DataFrame:
 
 def upload_source(df: pd.DataFrame, source: DataSource, credentials) -> None:
     """Upload a dataframe into its destination BigQuery table."""
-    print(f"Uploading to BigQuery: {PROJECT_ID}.{source.destination_table} ...")
+    expected = set(source.numeric_columns) | set(source.date_columns)
+    present = [column for column in df.columns if column in expected]
+    skipped = sorted(expected - set(df.columns))
+
+    print(
+        f"Uploading {len(df.columns)} columns to BigQuery "
+        f"{PROJECT_ID}.{source.destination_table}: {sorted(df.columns)}"
+    )
+    if skipped:
+        print(f"  Skipped (missing upstream): {skipped}")
+    print(f"  Of those, {len(present)} match the expected schema.")
     sys.stdout.flush()
+
     pandas_gbq.to_gbq(
         df,
         destination_table=source.destination_table,

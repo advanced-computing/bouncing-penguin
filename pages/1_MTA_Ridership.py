@@ -1,8 +1,16 @@
 from datetime import date, timedelta
 
+import pandas as pd
+import plotly.express as px
 import streamlit as st
 
-from utils import MTA_MIN_DATE, TRANSIT_MODES, display_load_time, load_mta_data
+from utils import (
+    MODE_COLORS,
+    MTA_MIN_DATE,
+    TRANSIT_MODES,
+    display_load_time,
+    load_mta_data,
+)
 
 st.set_page_config(page_title="MTA Ridership", layout="wide")
 
@@ -13,6 +21,27 @@ def get_mta_page_columns(selected_services: list[str]) -> tuple[str, ...]:
         mode_columns = TRANSIT_MODES.get(service, {})
         columns.update(mode_columns.values())
     return tuple(columns)
+
+
+def _tidy_series(
+    df: pd.DataFrame,
+    services: list[str],
+    column_lookup: dict[str, str],
+    rolling_window: int,
+) -> pd.DataFrame:
+    rows = []
+    for service in services:
+        column = column_lookup.get(service)
+        if not column or column not in df.columns:
+            continue
+        chunk = df[["date", column]].copy()
+        chunk["Service"] = service
+        chunk["Value"] = chunk[column].rolling(rolling_window).mean()
+        rows.append(chunk[["date", "Service", "Value"]])
+
+    if not rows:
+        return pd.DataFrame(columns=["date", "Service", "Value"])
+    return pd.concat(rows, ignore_index=True).dropna(subset=["Value"])
 
 
 def main() -> None:
@@ -69,13 +98,12 @@ def main() -> None:
             return
 
     st.caption(
-        "Source: BigQuery table `mta_data.daily_ridership` refreshed with `load_data_to_bq.py`."
+        "Source: BigQuery table `mta_data.daily_ridership` refreshed daily by GitHub Actions."
     )
     st.write(
         f"Loaded {len(df)} rows from {df['date'].min().date()} to {df['date'].max().date()}."
     )
 
-    st.caption("Fast default: recent 180 days. Expand only when you need the full history.")
     rolling_window = st.slider(
         "Rolling average (days)",
         min_value=1,
@@ -84,51 +112,99 @@ def main() -> None:
         key="mta_page_rolling_v2",
     )
 
-    services = {
-        "Subway": TRANSIT_MODES["Subway"]["ridership"],
-        "Bus": TRANSIT_MODES["Bus"]["ridership"],
-        "LIRR": TRANSIT_MODES["LIRR"]["ridership"],
-        "Metro-North": TRANSIT_MODES["Metro-North"]["ridership"],
-    }
-    selected_services = [
-        service for service in selected_services if services[service] in df.columns
-    ]
-    if not selected_services:
+    ridership_lookup = {service: TRANSIT_MODES[service]["ridership"] for service in selected_services}
+    available_services = [s for s in selected_services if ridership_lookup[s] in df.columns]
+    if not available_services:
         st.error("The selected ridership columns are not available in the current BigQuery table.")
         return
 
-    st.subheader("Daily Ridership Over Time")
-    ridership_frame = df[["date"]].copy()
-    for service in selected_services:
-        ridership_frame[service] = df[services[service]].rolling(rolling_window).mean()
-    st.line_chart(ridership_frame.set_index("date"), height=320)
+    st.subheader("Are riders coming back in absolute numbers?")
+    ridership_df = _tidy_series(df, available_services, ridership_lookup, rolling_window)
+    fig = px.line(
+        ridership_df,
+        x="date",
+        y="Value",
+        color="Service",
+        color_discrete_map=MODE_COLORS,
+    )
+    fig.update_layout(
+        height=320,
+        margin=dict(l=0, r=0, t=10, b=0),
+        xaxis_title="Date",
+        yaxis_title="Daily Ridership",
+        legend_title_text="",
+    )
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+    st.caption(
+        "Absolute ridership has trended up across services even when recovery percentages plateau."
+    )
 
-    st.subheader("Recovery Rate (% of Pre-Pandemic Levels)")
-    recovery_frame = df[["date"]].copy()
-    recovery_lookup = {
-        "Subway": TRANSIT_MODES["Subway"]["recovery"],
-        "Bus": TRANSIT_MODES["Bus"]["recovery"],
-        "LIRR": TRANSIT_MODES["LIRR"]["recovery"],
-        "Metro-North": TRANSIT_MODES["Metro-North"]["recovery"],
-    }
-    for service, column in recovery_lookup.items():
-        if column not in df.columns:
-            continue
-        recovery_frame[service] = df[column].rolling(rolling_window).mean()
-    st.line_chart(recovery_frame.set_index("date"), height=320)
+    st.subheader("How has each MTA service recovered since 2020?")
+    recovery_lookup = {service: TRANSIT_MODES[service]["recovery"] for service in selected_services}
+    recovery_df = _tidy_series(df, available_services, recovery_lookup, rolling_window)
+    recovery_df["Recovery Percent"] = recovery_df["Value"] * 100
+    recovery_fig = px.line(
+        recovery_df,
+        x="date",
+        y="Recovery Percent",
+        color="Service",
+        color_discrete_map=MODE_COLORS,
+    )
+    recovery_fig.add_hline(
+        y=100,
+        line_dash="dash",
+        line_color="#64748b",
+        annotation_text="Pre-pandemic baseline",
+    )
+    recovery_fig.update_layout(
+        height=320,
+        margin=dict(l=0, r=0, t=10, b=0),
+        xaxis_title="Date",
+        yaxis_title="Recovery Rate",
+        legend_title_text="",
+    )
+    recovery_fig.update_yaxes(ticksuffix="%", rangemode="tozero")
+    st.plotly_chart(recovery_fig, width="stretch", config={"displayModeBar": False})
     st.caption("The pre-pandemic baseline is 100% recovery.")
 
-    st.subheader("Weekday vs Weekend Subway Ridership")
-    day_type_frame = df.copy()
-    day_type_frame["Day Type"] = day_type_frame["is_weekend"].map(
-        {True: "Weekend", False: "Weekday"}
-    )
-    weekend_average = (
-        day_type_frame.groupby("Day Type")[TRANSIT_MODES["Subway"]["ridership"]]
-        .mean()
-        .reset_index()
-    )
-    st.bar_chart(weekend_average.set_index("Day Type"))
+    st.subheader("Has commuting changed permanently?")
+    subway_column = TRANSIT_MODES["Subway"]["ridership"]
+    if subway_column in df.columns:
+        day_type_frame = df.copy()
+        day_type_frame["Day Type"] = day_type_frame["is_weekend"].map(
+            {True: "Weekend", False: "Weekday"}
+        )
+        weekend_average = (
+            day_type_frame.groupby("Day Type", as_index=False)[subway_column]
+            .mean()
+            .rename(columns={subway_column: "Average Subway Ridership"})
+        )
+        bar_fig = px.bar(
+            weekend_average,
+            x="Day Type",
+            y="Average Subway Ridership",
+            color="Day Type",
+            color_discrete_map={"Weekday": MODE_COLORS["Subway"], "Weekend": MODE_COLORS["Bus"]},
+        )
+        bar_fig.update_layout(
+            height=280,
+            margin=dict(l=0, r=0, t=10, b=0),
+            xaxis_title="",
+            showlegend=False,
+        )
+        st.plotly_chart(bar_fig, width="stretch", config={"displayModeBar": False})
+        if len(weekend_average) == 2:
+            weekday_val = weekend_average.loc[
+                weekend_average["Day Type"] == "Weekday", "Average Subway Ridership"
+            ].iloc[0]
+            weekend_val = weekend_average.loc[
+                weekend_average["Day Type"] == "Weekend", "Average Subway Ridership"
+            ].iloc[0]
+            if weekday_val > 0:
+                st.caption(
+                    f"Weekends average **{weekend_val / weekday_val:.0%}** of weekday subway "
+                    "ridership — weekday commuting still drives system load."
+                )
 
 
 with display_load_time():

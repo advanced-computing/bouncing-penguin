@@ -39,6 +39,7 @@ Both datasets are loaded into BigQuery for the Streamlit app:
 - `validation.py` - Pandera schema validation
 - `tests/` - unit tests for utility and validation code
 - `load_data_to_bq.py` - script for loading both datasets into BigQuery
+- `.github/workflows/refresh-data.yml` - daily automated BigQuery refresh
 - `LAB_10_WRITEUP.md` - Lab 10 notes on data loading and performance
 
 ## Setup
@@ -60,6 +61,26 @@ streamlit run streamlit_app.py
 ```
 
 You can still open `mta_ridership_project.ipynb` in Jupyter Notebook or VS Code for notebook-based exploration.
+
+## Automation
+
+The BigQuery tables are refreshed daily by GitHub Actions
+([`.github/workflows/refresh-data.yml`](./.github/workflows/refresh-data.yml)).
+The workflow runs at 12:00 UTC every day and can also be triggered manually
+from the **Actions** tab via *Run workflow*.
+
+To enable the workflow on a fresh fork:
+
+1. Create a Google Cloud service account with BigQuery Data Editor + BigQuery Job User on the
+   `sipa-adv-c-bouncing-penguin` project, and download its JSON key.
+2. In the GitHub repo, go to **Settings → Secrets and variables → Actions → New repository secret**.
+3. Name the secret `GCP_SA_KEY` and paste the entire contents of the JSON key file as the value.
+4. Trigger the workflow once via *Run workflow* to confirm it succeeds. Subsequent runs happen
+   automatically every day.
+
+The Streamlit dashboard caches BigQuery results for one hour (`ttl=3600`), so updates from
+the workflow surface in the deployed app within an hour of completion. The dashboard also
+shows a "Data current as of" banner at the top so you can see at a glance how fresh the data is.
 
 ## Lab 10
 
