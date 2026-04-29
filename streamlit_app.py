@@ -64,20 +64,6 @@ def render_data_status(mta_df: pd.DataFrame, covid_df: pd.DataFrame) -> None:
         return
 
     latest_mta = mta_df["date"].max().date()
-    days_behind = (date.today() - latest_mta).days
-    freshness = (
-        f"Data current as of **{latest_mta}** "
-        f"({days_behind} day{'s' if days_behind != 1 else ''} behind today)"
-    )
-    if days_behind <= 3:
-        st.success(f"🟢 {freshness}")
-    elif days_behind <= 14:
-        st.info(f"🟡 {freshness}")
-    else:
-        st.warning(
-            f"🔴 {freshness}. The daily refresh workflow may need attention."
-        )
-
     mta_range = f"{mta_df['date'].min().date()} to {latest_mta}"
     status_columns = st.columns(4)
     status_columns[0].metric("Latest MTA Date", str(latest_mta))
@@ -89,6 +75,33 @@ def render_data_status(mta_df: pd.DataFrame, covid_df: pd.DataFrame) -> None:
     else:
         latest_covid = covid_df["date_of_interest"].max().date()
         status_columns[3].metric("Latest COVID Date", str(latest_covid))
+
+
+def render_about_data() -> None:
+    with st.expander("About the data", expanded=False):
+        st.markdown(
+            """
+            **Data sources**
+            - MTA Daily Ridership — NY Open Data dataset `vxuj-8kew`
+            - NYC COVID-19 Cases — NY Open Data dataset `rc75-m7u3`
+
+            **Refresh cadence**
+            - GitHub Actions runs the ETL daily at 12:00 UTC
+            - Manual `workflow_dispatch` trigger available for ad-hoc refreshes
+
+            **Validation**
+            - pandera schema validation on ingest; missing optional numeric
+              columns produce warnings rather than failures so the pipeline
+              degrades gracefully
+
+            **Upstream status**
+            - As of the most recent successful run, the upstream MTA Daily
+              Ridership feed has not published rows beyond 2025-01-09.
+              The pipeline continues to execute cleanly each day; the latest
+              BigQuery date reflects the upstream publisher's cadence,
+              not a pipeline failure.
+            """
+        )
 
 
 def tidy_time_series(
@@ -734,6 +747,8 @@ def render_dashboard(
         "`mta_data.daily_ridership`, `mta_data.nyc_covid_cases`, "
         "and supporting holiday metadata in the app."
     )
+
+    render_about_data()
 
 
 def render_proposal() -> None:
