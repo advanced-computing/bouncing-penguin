@@ -761,7 +761,7 @@ def main() -> None:
                 mta_df = load_mta_data(columns=requested_columns)
                 covid_df = load_covid_data() if section == "COVID Context" else pd.DataFrame()
         except Exception as exc:
-            st.error(f"Failed to load data from BigQuery: {exc}")
+            st.error(f"Failed to load transit data: {exc}")
             return
 
         render_data_status(mta_df, covid_df)

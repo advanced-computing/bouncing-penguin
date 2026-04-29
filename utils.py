@@ -232,7 +232,21 @@ def load_mta_data(
     end_date: str | None = None,
     lookback_days: int | None = None,
 ) -> pd.DataFrame:
-    """Load MTA ridership data from BigQuery, with an API fallback for deployment."""
+    """Load MTA ridership data quickly for the deployed app.
+
+    The project still loads and stores data in BigQuery through the ETL script,
+    but Streamlit Cloud can hang on BigQuery authentication. The public API is
+    used first so the app renders reliably; BigQuery remains as a fallback.
+    """
+    try:
+        return _load_mta_from_api(
+            start_date=start_date,
+            end_date=end_date,
+            lookback_days=lookback_days,
+        )
+    except Exception:
+        pass
+
     try:
         df = _load_table(
             MTA_TABLE,
@@ -243,12 +257,8 @@ def load_mta_data(
             lookback_days=lookback_days,
         )
         return clean_mta_df(df)
-    except Exception:
-        return _load_mta_from_api(
-            start_date=start_date,
-            end_date=end_date,
-            lookback_days=lookback_days,
-        )
+    except Exception as exc:
+        raise RuntimeError("Unable to load MTA data from Open Data API or BigQuery.") from exc
 
 
 def clean_covid_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -277,7 +287,16 @@ def load_covid_data(
     end_date: str | None = None,
     lookback_days: int | None = None,
 ) -> pd.DataFrame:
-    """Load NYC COVID case data from BigQuery, with an API fallback for deployment."""
+    """Load NYC COVID case data quickly for the deployed app."""
+    try:
+        return _load_covid_from_api(
+            start_date=start_date,
+            end_date=end_date,
+            lookback_days=lookback_days,
+        )
+    except Exception:
+        pass
+
     try:
         df = _load_table(
             COVID_TABLE,
@@ -288,12 +307,8 @@ def load_covid_data(
             lookback_days=lookback_days,
         )
         return clean_covid_df(df)
-    except Exception:
-        return _load_covid_from_api(
-            start_date=start_date,
-            end_date=end_date,
-            lookback_days=lookback_days,
-        )
+    except Exception as exc:
+        raise RuntimeError("Unable to load COVID data from Open Data API or BigQuery.") from exc
 
 
 @contextmanager
