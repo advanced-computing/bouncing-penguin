@@ -22,10 +22,20 @@ def test_validate_source_frame_accepts_complete_data():
 
 
 def test_validate_source_frame_rejects_missing_required_columns():
-    df = _valid_mta_frame().drop(columns=["buses_pct_of_comparable_pre_pandemic_day"])
+    df = _valid_mta_frame().drop(columns=["date"])
 
     with pytest.raises(RuntimeError, match="missing required columns"):
         validate_source_frame(df, DATA_SOURCES["mta"])
+
+
+def test_validate_source_frame_warns_on_missing_optional_column(capsys):
+    df = _valid_mta_frame().drop(columns=["buses_total_estimated_ridership"])
+
+    validate_source_frame(df, DATA_SOURCES["mta"])
+
+    out = capsys.readouterr().out
+    assert "buses_total_estimated_ridership" in out
+    assert "WARNING" in out
 
 
 def test_validate_source_frame_rejects_too_few_rows():

@@ -167,7 +167,7 @@ def _load_table(
     return query_job.to_dataframe(create_bqstorage_client=False)
 
 
-@st.cache_data(show_spinner=False, persist="disk")
+@st.cache_data(show_spinner=False, persist="disk", ttl=3600)
 def load_mta_data(
     columns: tuple[str, ...] = MTA_COLUMNS,
     start_date: str | None = None,
@@ -205,7 +205,7 @@ def clean_covid_df(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-@st.cache_data(show_spinner=False, persist="disk")
+@st.cache_data(show_spinner=False, persist="disk", ttl=3600)
 def load_covid_data(
     columns: tuple[str, ...] = COVID_COLUMNS,
     start_date: str | None = None,
@@ -284,6 +284,16 @@ def clean_mta_df(df: pd.DataFrame) -> pd.DataFrame:
     out["year_month"] = out["date"].dt.to_period("M").astype(str)
 
     return out
+
+
+# Unified color palette so each transit mode renders the same color everywhere.
+MODE_COLORS = {
+    "Subway": "#2563eb",
+    "Bus": "#f97316",
+    "LIRR": "#10b981",
+    "Metro-North": "#a855f7",
+    "Bridges & Tunnels": "#ef4444",
+}
 
 
 # Mapping from friendly names to column names
@@ -375,6 +385,27 @@ def get_latest_recovery(df: pd.DataFrame, days: int = 30) -> dict:
         if col in recent.columns:
             val = recent[col].mean()
             result[mode] = val
+    return result
+
+
+def get_recovery_with_delta(df: pd.DataFrame, days: int = 30) -> dict:
+    """Recovery for the latest N days plus the change versus the prior N days."""
+    sorted_df = df.sort_values("date")
+    recent = sorted_df.tail(days)
+    prior = sorted_df.iloc[-(days * 2) : -days] if len(sorted_df) >= days * 2 else None
+
+    result = {}
+    for mode, cols in TRANSIT_MODES.items():
+        col = cols["recovery"]
+        if col not in recent.columns:
+            continue
+        recent_val = recent[col].mean()
+        if prior is None or prior.empty:
+            delta = None
+        else:
+            prior_val = prior[col].mean()
+            delta = recent_val - prior_val
+        result[mode] = {"recovery": recent_val, "delta": delta}
     return result
 
 

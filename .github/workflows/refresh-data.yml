@@ -1,12 +1,12 @@
-name: Scheduled ETL
+name: Refresh BigQuery Data
 
 on:
   schedule:
-    - cron: "0 6 * * *"
+    - cron: "0 12 * * *"
   workflow_dispatch:
 
 jobs:
-  load-data:
+  refresh:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,8 +20,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run ETL
+      - name: Refresh BigQuery tables from NYC Open Data
         env:
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-        run: |
-          python load_data_to_bq.py --dataset all
+        run: python load_data_to_bq.py --dataset all
