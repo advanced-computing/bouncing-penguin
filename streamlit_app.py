@@ -64,27 +64,6 @@ def render_data_status(mta_df: pd.DataFrame, covid_df: pd.DataFrame) -> None:
         return
 
     latest_mta = mta_df["date"].max().date()
-    days_behind = (date.today() - latest_mta).days
-    upstream_frozen_date = date(2025, 1, 9)
-
-    if latest_mta >= upstream_frozen_date:
-        st.info(
-            f"ℹ️ Latest MTA data: **{latest_mta}**. The upstream "
-            "[NY Open Data MTA Daily Ridership feed]"
-            "(https://data.ny.gov/Transportation/MTA-Daily-Ridership-Data-Beginning-2020/vxuj-8kew) "
-            f"stopped publishing new rows after **{upstream_frozen_date}**, so the daily "
-            "refresh workflow runs successfully but cannot pull anything newer from the source."
-        )
-    elif days_behind <= 3:
-        st.success(f"🟢 Data current as of **{latest_mta}** ({days_behind} days behind today)")
-    elif days_behind <= 14:
-        st.info(f"🟡 Data current as of **{latest_mta}** ({days_behind} days behind today)")
-    else:
-        st.warning(
-            f"🔴 Data current as of **{latest_mta}** ({days_behind} days behind today). "
-            "The daily refresh workflow may need attention."
-        )
-
     mta_range = f"{mta_df['date'].min().date()} to {latest_mta}"
     status_columns = st.columns(4)
     status_columns[0].metric("Latest MTA Date", str(latest_mta))
@@ -96,6 +75,33 @@ def render_data_status(mta_df: pd.DataFrame, covid_df: pd.DataFrame) -> None:
     else:
         latest_covid = covid_df["date_of_interest"].max().date()
         status_columns[3].metric("Latest COVID Date", str(latest_covid))
+
+
+def render_about_data() -> None:
+    with st.expander("About the data", expanded=False):
+        st.markdown(
+            """
+            **Data sources**
+            - MTA Daily Ridership — NY Open Data dataset `vxuj-8kew`
+            - NYC COVID-19 Cases — NY Open Data dataset `rc75-m7u3`
+
+            **Refresh cadence**
+            - GitHub Actions runs the ETL daily at 12:00 UTC
+            - Manual `workflow_dispatch` trigger available for ad-hoc refreshes
+
+            **Validation**
+            - pandera schema validation on ingest; missing optional numeric
+              columns produce warnings rather than failures so the pipeline
+              degrades gracefully
+
+            **Upstream status**
+            - As of the most recent successful run, the upstream MTA Daily
+              Ridership feed has not published rows beyond 2025-01-09.
+              The pipeline continues to execute cleanly each day; the latest
+              BigQuery date reflects the upstream publisher's cadence,
+              not a pipeline failure.
+            """
+        )
 
 
 def tidy_time_series(
@@ -741,6 +747,8 @@ def render_dashboard(
         "`mta_data.daily_ridership`, `mta_data.nyc_covid_cases`, "
         "and supporting holiday metadata in the app."
     )
+
+    render_about_data()
 
 
 def render_proposal() -> None:
