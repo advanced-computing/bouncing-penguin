@@ -611,6 +611,7 @@ def render_dashboard(
     covid_df: pd.DataFrame,
     selected_modes: list[str],
     rolling_window: int,
+    section: str,
 ) -> None:
     st.sidebar.header("Filters")
     st.sidebar.caption("Fast default: recent 180 days. Expand the range only when needed.")
@@ -618,14 +619,6 @@ def render_dashboard(
     if mta_df.empty:
         st.warning("No data is available for the current filters.")
         return
-
-    section = st.radio(
-        "Dashboard section",
-        ["Overview", "Comparison", "Calendar", "Events", "COVID Context"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="dashboard_section_fast_v1",
-    )
 
     st.caption(
         "Only the selected section is rendered, which keeps the deployed app responsive."
@@ -714,6 +707,12 @@ def main() -> None:
 
     page = st.radio("View", ["Dashboard", "Proposal"], horizontal=True)
     if page == "Dashboard":
+        section = st.radio(
+            "Dashboard section",
+            ["Overview", "Comparison", "Calendar", "Events", "COVID Context"],
+            horizontal=True,
+            key="dashboard_section_fast_v2",
+        )
         selected_modes = st.sidebar.multiselect(
             "Transit modes",
             options=list(TRANSIT_MODES.keys()),
@@ -742,23 +741,31 @@ def main() -> None:
                     columns=requested_columns,
                     lookback_days=lookback_days,
                 )
-                covid_df = load_covid_data(lookback_days=lookback_days)
+                covid_df = (
+                    load_covid_data(lookback_days=lookback_days)
+                    if section == "COVID Context"
+                    else pd.DataFrame()
+                )
             elif start_date and end_date:
                 mta_df = load_mta_data(
                     columns=requested_columns,
                     start_date=start_date,
                     end_date=end_date,
                 )
-                covid_df = load_covid_data(start_date=start_date, end_date=end_date)
+                covid_df = (
+                    load_covid_data(start_date=start_date, end_date=end_date)
+                    if section == "COVID Context"
+                    else pd.DataFrame()
+                )
             else:
                 mta_df = load_mta_data(columns=requested_columns)
-                covid_df = load_covid_data()
+                covid_df = load_covid_data() if section == "COVID Context" else pd.DataFrame()
         except Exception as exc:
             st.error(f"Failed to load data from BigQuery: {exc}")
             return
 
         render_data_status(mta_df, covid_df)
-        render_dashboard(mta_df, covid_df, selected_modes, rolling_window)
+        render_dashboard(mta_df, covid_df, selected_modes, rolling_window, section)
     else:
         render_proposal()
 

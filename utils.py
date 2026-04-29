@@ -1,9 +1,11 @@
 from contextlib import contextmanager
+from concurrent.futures import TimeoutError
 from datetime import date
 import time
 from typing import Iterable
 
 import pandas as pd
+import requests
 import streamlit as st
 from google.cloud import bigquery
 from google.oauth2 import service_account
@@ -11,6 +13,9 @@ from google.oauth2 import service_account
 PROJECT_ID = "sipa-adv-c-bouncing-penguin"
 MTA_TABLE = "mta_data.daily_ridership"
 COVID_TABLE = "mta_data.nyc_covid_cases"
+MTA_API_URL = "https://data.ny.gov/resource/vxuj-8kew.json"
+COVID_API_URL = "https://data.cityofnewyork.us/resource/rc75-m7u3.json"
+QUERY_TIMEOUT_SECONDS = 8
 MTA_MIN_DATE = date(2020, 3, 1)
 COVID_MIN_DATE = date(2020, 3, 1)
 
@@ -64,7 +69,10 @@ def _render_select_clause(columns: Iterable[str]) -> str:
 @st.cache_data(show_spinner=False, persist="disk", ttl=60 * 60 * 12)
 def _get_table_columns(table_name: str) -> set[str]:
     client = get_bigquery_client()
-    table = client.get_table(f"{PROJECT_ID}.{table_name}")
+    table = client.get_table(
+        f"{PROJECT_ID}.{table_name}",
+        timeout=QUERY_TIMEOUT_SECONDS,
+    )
     return {field.name for field in table.schema}
 
 
@@ -105,22 +113,17 @@ def _build_select_expressions(
     table_name: str,
     requested_columns: Iterable[str],
 ) -> tuple[list[str], str]:
-    available_columns = _get_table_columns(table_name)
     date_column = "date" if table_name == MTA_TABLE else "date_of_interest"
     expressions = []
 
     for output_column in requested_columns:
-        source_column = _get_source_column(table_name, output_column, available_columns)
-        if not source_column:
-            continue
-
         if output_column == date_column:
             expressions.append(
-                f"SAFE_CAST(`{source_column}` AS DATE) AS `{output_column}`"
+                f"SAFE_CAST(`{output_column}` AS DATE) AS `{output_column}`"
             )
         else:
             expressions.append(
-                f"SAFE_CAST(`{source_column}` AS FLOAT64) AS `{output_column}`"
+                f"SAFE_CAST(`{output_column}` AS FLOAT64) AS `{output_column}`"
             )
 
     return expressions, date_column
@@ -164,7 +167,62 @@ def _load_table(
     client = get_bigquery_client()
     job_config = bigquery.QueryJobConfig(use_query_cache=True)
     query_job = client.query(query, job_config=job_config)
-    return query_job.to_dataframe(create_bqstorage_client=False)
+    try:
+        rows = query_job.result(timeout=QUERY_TIMEOUT_SECONDS)
+    except TimeoutError:
+        query_job.cancel()
+        raise
+    return rows.to_dataframe(create_bqstorage_client=False)
+
+
+def _filter_by_dates(
+    df: pd.DataFrame,
+    date_column: str,
+    start_date: str | None,
+    end_date: str | None,
+) -> pd.DataFrame:
+    if start_date and end_date:
+        start = pd.Timestamp(start_date)
+        end = pd.Timestamp(end_date)
+        return df[(df[date_column] >= start) & (df[date_column] <= end)]
+    return df
+
+
+def _load_open_data_api(
+    api_url: str,
+    order_column: str,
+    lookback_days: int | None,
+) -> pd.DataFrame:
+    params = {"$limit": 50000, "$order": order_column}
+    if lookback_days is not None:
+        params = {"$limit": lookback_days + 1, "$order": f"{order_column} DESC"}
+
+    response = requests.get(api_url, params=params, timeout=10)
+    response.raise_for_status()
+    df = pd.DataFrame(response.json())
+    if df.empty:
+        raise RuntimeError(f"{api_url} returned no rows.")
+    return df
+
+
+def _load_mta_from_api(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    lookback_days: int | None = None,
+) -> pd.DataFrame:
+    df = _load_open_data_api(MTA_API_URL, "date", lookback_days)
+    df = clean_mta_df(df)
+    return _filter_by_dates(df, "date", start_date, end_date)
+
+
+def _load_covid_from_api(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    lookback_days: int | None = None,
+) -> pd.DataFrame:
+    df = _load_open_data_api(COVID_API_URL, "date_of_interest", lookback_days)
+    df = clean_covid_df(df)
+    return _filter_by_dates(df, "date_of_interest", start_date, end_date)
 
 
 @st.cache_data(show_spinner=False, persist="disk")
@@ -174,16 +232,23 @@ def load_mta_data(
     end_date: str | None = None,
     lookback_days: int | None = None,
 ) -> pd.DataFrame:
-    """Load MTA ridership data from BigQuery."""
-    df = _load_table(
-        MTA_TABLE,
-        columns,
-        order_by="date",
-        start_date=start_date,
-        end_date=end_date,
-        lookback_days=lookback_days,
-    )
-    return clean_mta_df(df)
+    """Load MTA ridership data from BigQuery, with an API fallback for deployment."""
+    try:
+        df = _load_table(
+            MTA_TABLE,
+            columns,
+            order_by="date",
+            start_date=start_date,
+            end_date=end_date,
+            lookback_days=lookback_days,
+        )
+        return clean_mta_df(df)
+    except Exception:
+        return _load_mta_from_api(
+            start_date=start_date,
+            end_date=end_date,
+            lookback_days=lookback_days,
+        )
 
 
 def clean_covid_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -212,16 +277,23 @@ def load_covid_data(
     end_date: str | None = None,
     lookback_days: int | None = None,
 ) -> pd.DataFrame:
-    """Load NYC COVID case data from BigQuery."""
-    df = _load_table(
-        COVID_TABLE,
-        columns,
-        order_by="date_of_interest",
-        start_date=start_date,
-        end_date=end_date,
-        lookback_days=lookback_days,
-    )
-    return clean_covid_df(df)
+    """Load NYC COVID case data from BigQuery, with an API fallback for deployment."""
+    try:
+        df = _load_table(
+            COVID_TABLE,
+            columns,
+            order_by="date_of_interest",
+            start_date=start_date,
+            end_date=end_date,
+            lookback_days=lookback_days,
+        )
+        return clean_covid_df(df)
+    except Exception:
+        return _load_covid_from_api(
+            start_date=start_date,
+            end_date=end_date,
+            lookback_days=lookback_days,
+        )
 
 
 @contextmanager
