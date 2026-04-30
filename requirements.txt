@@ -1,6 +1,7 @@
 streamlit
 pandas
 plotly
+Pillow
 requests
 ruff
 pytest

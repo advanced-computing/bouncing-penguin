@@ -1,10 +1,17 @@
 from datetime import date, timedelta
+from pathlib import Path
 
 import streamlit as st
 
 from utils import COVID_MIN_DATE, display_load_time, load_covid_data
 
 st.set_page_config(page_title="NYC COVID Data", layout="wide")
+
+# ===== UI Style Sync =====
+_css = Path(__file__).parent.parent / "assets" / "style.css"
+if _css.exists():
+    st.markdown(f"<style>{_css.read_text()}</style>", unsafe_allow_html=True)
+# ========================
 
 
 def main() -> None:

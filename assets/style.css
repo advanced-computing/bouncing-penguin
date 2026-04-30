@@ -1,0 +1,276 @@
+/* ===== Bouncing Penguin · Columbia SIPA — Dashboard Styles ===== */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+/* ----- Global typography ----- */
+html, body, [class*="css"], .stApp, .main, [data-testid="stAppViewContainer"] {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+    color: #0F1419;
+}
+
+h1, h2, h3, h4, h5, h6,
+[data-testid="stHeader"] h1,
+.stMarkdown h1, .stMarkdown h2, .stMarkdown h3, .stMarkdown h4 {
+    font-family: 'Space Grotesk', 'Inter', sans-serif !important;
+    font-weight: 600 !important;
+    color: #1F3464 !important;
+    letter-spacing: -0.01em;
+}
+
+code, pre, kbd, samp,
+[data-testid="stCodeBlock"], .stCodeBlock {
+    font-family: 'JetBrains Mono', 'Menlo', monospace !important;
+}
+
+/* ----- Page title (h1) accent ----- */
+.stApp h1:first-of-type {
+    border-bottom: 3px solid #1E5BA8;
+    padding-bottom: 8px;
+    display: inline-block;
+    margin-bottom: 8px;
+}
+
+/* ----- Section headings (h2) — blue dot bullet ----- */
+.stMarkdown h2,
+.stApp [data-testid="stMarkdownContainer"] h2,
+[data-testid="stHeading"] h2 {
+    position: relative;
+    padding-left: 18px;
+}
+.stMarkdown h2::before,
+[data-testid="stMarkdownContainer"] h2::before,
+[data-testid="stHeading"] h2::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #1E5BA8;
+    box-shadow: 0 0 0 3px rgba(30, 91, 168, 0.15);
+}
+
+/* ----- Subheaders (h3) — softer accent ----- */
+.stMarkdown h3,
+[data-testid="stMarkdownContainer"] h3 {
+    color: #1F3464 !important;
+    font-weight: 600 !important;
+}
+
+/* ----- KPI / Metric cards ----- */
+[data-testid="stMetric"] {
+    background-color: #FFFFFF;
+    border-radius: 12px;
+    padding: 16px 20px;
+    border-left: 4px solid #1E5BA8;
+    box-shadow: 0 1px 3px rgba(15, 20, 25, 0.06),
+                0 1px 2px rgba(15, 20, 25, 0.04);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+[data-testid="stMetric"]:hover {
+    box-shadow: 0 4px 12px rgba(30, 91, 168, 0.10),
+                0 2px 4px rgba(15, 20, 25, 0.06);
+    transform: translateY(-1px);
+}
+
+[data-testid="stMetricValue"] {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-weight: 700 !important;
+    font-size: 1.85rem !important;
+    color: #1F3464 !important;
+}
+
+[data-testid="stMetricLabel"] {
+    font-size: 0.72rem !important;
+    color: #6B7280 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600 !important;
+}
+
+[data-testid="stMetricDelta"] {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+}
+
+/* ----- Sidebar ----- */
+[data-testid="stSidebar"] {
+    background-color: #E8EDF3;
+    border-right: 1px solid #B9D9EB;
+}
+
+[data-testid="stSidebar"] .stMarkdown,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
+    color: #1F3464 !important;
+    font-weight: 600 !important;
+}
+
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 {
+    color: #1F3464 !important;
+    font-family: 'Space Grotesk', sans-serif !important;
+}
+
+[data-testid="stSidebar"] h2::before,
+[data-testid="stSidebar"] h3::before {
+    display: none;
+}
+
+/* Sidebar widgets */
+[data-testid="stSidebar"] [data-baseweb="select"] > div,
+[data-testid="stSidebar"] input,
+[data-testid="stSidebar"] textarea {
+    background-color: #FFFFFF !important;
+    border-color: #B9D9EB !important;
+}
+
+[data-testid="stSidebar"] [data-baseweb="slider"] [role="slider"] {
+    background-color: #1E5BA8 !important;
+}
+
+/* ----- Buttons ----- */
+.stButton > button,
+[data-testid="stBaseButton-secondary"] {
+    background-color: #1E5BA8;
+    color: #FFFFFF !important;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 500;
+    transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.stButton > button:hover {
+    background-color: #1F3464;
+    transform: translateY(-1px);
+}
+
+/* ----- Tabs ----- */
+[data-testid="stTabs"] [data-baseweb="tab-list"] {
+    gap: 4px;
+    border-bottom: 2px solid #B9D9EB;
+}
+
+[data-testid="stTabs"] [data-baseweb="tab"] {
+    background-color: transparent;
+    color: #6B7280;
+    font-weight: 500;
+    font-family: 'Space Grotesk', sans-serif;
+    border-radius: 8px 8px 0 0;
+    padding: 8px 16px;
+}
+
+[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] {
+    color: #1E5BA8;
+    background-color: rgba(30, 91, 168, 0.08);
+    border-bottom: 3px solid #1E5BA8;
+}
+
+/* ----- Info / Warning / Success / Error boxes ----- */
+[data-testid="stAlert"],
+[data-testid="stNotification"] {
+    border-radius: 10px;
+    border-left-width: 4px;
+}
+
+/* Info — Ocean Blue */
+[data-testid="stAlert"][kind="info"],
+div[data-baseweb="notification"][kind="info"],
+.stAlert.st-info {
+    background-color: rgba(30, 91, 168, 0.08) !important;
+    border-left-color: #1E5BA8 !important;
+    color: #1F3464 !important;
+}
+
+/* Warning — Penguin Orange */
+[data-testid="stAlert"][kind="warning"] {
+    background-color: rgba(243, 156, 92, 0.10) !important;
+    border-left-color: #F39C5C !important;
+    color: #7C4A1E !important;
+}
+
+/* Success — Sky Blue */
+[data-testid="stAlert"][kind="success"] {
+    background-color: rgba(91, 169, 221, 0.10) !important;
+    border-left-color: #5BA9DD !important;
+}
+
+/* ----- Radio / Multiselect / Selectbox ----- */
+[data-baseweb="select"] > div,
+.stSelectbox > div > div,
+.stMultiSelect > div > div {
+    border-color: #B9D9EB !important;
+    border-radius: 8px;
+}
+
+[data-baseweb="tag"] {
+    background-color: rgba(30, 91, 168, 0.10) !important;
+    color: #1F3464 !important;
+}
+
+/* ----- Dividers ----- */
+hr, [data-testid="stDivider"] {
+    border-top: 1px solid #B9D9EB !important;
+    background: transparent !important;
+}
+
+/* ----- Captions ----- */
+[data-testid="stCaptionContainer"], .stCaption,
+small, .small {
+    color: #6B7280 !important;
+    font-style: italic;
+}
+
+/* ----- Expander ----- */
+[data-testid="stExpander"] {
+    border: 1px solid #B9D9EB !important;
+    border-radius: 10px !important;
+    background-color: #FFFFFF;
+}
+
+[data-testid="stExpander"] summary {
+    color: #1F3464 !important;
+    font-weight: 600;
+    font-family: 'Space Grotesk', sans-serif;
+}
+
+/* ----- DataFrame ----- */
+[data-testid="stDataFrame"] {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #B9D9EB;
+}
+
+/* ----- Hide Streamlit chrome ----- */
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
+header [data-testid="stToolbar"] { visibility: hidden; }
+[data-testid="stDecoration"] { display: none; }
+
+/* ----- Scrollbar (WebKit) ----- */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+::-webkit-scrollbar-track {
+    background: #F4F7FA;
+}
+::-webkit-scrollbar-thumb {
+    background: #B9D9EB;
+    border-radius: 6px;
+    border: 2px solid #F4F7FA;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #5BA9DD;
+}
+
+/* ----- Sidebar image polish ----- */
+[data-testid="stSidebar"] [data-testid="stImage"] img {
+    border-radius: 8px;
+}

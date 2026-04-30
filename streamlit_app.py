@@ -1,11 +1,14 @@
 from datetime import date, timedelta
+from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from PIL import Image
 from plotly.subplots import make_subplots
 
+from chart_theme import PENGUIN_PALETTE, apply_penguin_theme
 from utils import (
     MODE_COLORS,
     MTA_MIN_DATE,
@@ -19,7 +22,49 @@ from utils import (
     load_mta_data,
 )
 
-st.set_page_config(page_title="MTA Ridership Dashboard", layout="wide")
+_PENGUIN_ICON = Path(__file__).parent / "assets" / "bouncing_penguin.png"
+st.set_page_config(
+    page_title="MTA Ridership Dashboard",
+    layout="wide",
+    page_icon=Image.open(_PENGUIN_ICON) if _PENGUIN_ICON.exists() else "🐧",
+)
+
+# ===== UI Customization Block - START =====
+_css_path = Path(__file__).parent / "assets" / "style.css"
+if _css_path.exists():
+    st.markdown(f"<style>{_css_path.read_text()}</style>", unsafe_allow_html=True)
+
+with st.sidebar:
+    _sipa_logo = Path(__file__).parent / "assets" / "sipa_logo.png"
+    if _sipa_logo.exists():
+        st.image(str(_sipa_logo), width="stretch")
+
+    _penguin = Path(__file__).parent / "assets" / "bouncing_penguin.png"
+    if _penguin.exists():
+        _c1, _c2, _c3 = st.columns([1, 3, 1])
+        with _c2:
+            st.image(str(_penguin), width="stretch")
+
+    st.markdown(
+        """
+        <div style='text-align:center; padding: 8px 0 16px 0;'>
+            <div style='font-family: "Space Grotesk", sans-serif;
+                        font-weight: 700; font-size: 1.1rem;
+                        color: #1F3464; line-height: 1.2;'>
+                Bouncing Penguin
+            </div>
+            <div style='font-family: "Inter", sans-serif;
+                        font-size: 0.8rem; color: #6B7280;
+                        font-style: italic; margin-top: 4px;'>
+                Advanced Computing &middot; Columbia SIPA
+            </div>
+        </div>
+        <hr style='margin: 0 0 12px 0; border: none;
+                   border-top: 1px solid #B9D9EB;' />
+        """,
+        unsafe_allow_html=True,
+    )
+# ===== UI Customization Block - END =====
 
 
 def get_dashboard_columns(selected_modes: list[str]) -> tuple[str, ...]:
@@ -222,6 +267,7 @@ def render_recovery_chart(
         legend_title_text="",
     )
     fig.update_yaxes(ticksuffix="%", rangemode="tozero")
+    apply_penguin_theme(fig)
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
     insight_lines = []
@@ -266,6 +312,7 @@ def render_total_chart(
         yaxis_title="Daily Ridership / Traffic",
         legend_title_text="",
     )
+    apply_penguin_theme(fig)
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
     st.caption(
         "Even where recovery percentages plateau, raw ridership still trends up — "
@@ -293,7 +340,7 @@ def render_subway_day_type_summary(filtered: pd.DataFrame) -> None:
         x="Day Type",
         y=subway_column,
         color="Day Type",
-        color_discrete_map={"Weekday": "#2563eb", "Weekend": "#f97316"},
+        color_discrete_map={"Weekday": "#1E5BA8", "Weekend": "#F39C5C"},
     )
     fig.update_layout(
         height=260,
@@ -302,6 +349,7 @@ def render_subway_day_type_summary(filtered: pd.DataFrame) -> None:
         yaxis_title="Average Subway Ridership",
         showlegend=False,
     )
+    apply_penguin_theme(fig)
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
     if not averages.empty and len(averages) == 2:
         weekday_val = averages.loc[averages["Day Type"] == "Weekday", subway_column].mean()
@@ -345,6 +393,7 @@ def render_mode_recovery_summary(filtered: pd.DataFrame) -> None:
         showlegend=False,
     )
     fig.update_yaxes(ticksuffix="%", rangemode="tozero")
+    apply_penguin_theme(fig)
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 
@@ -383,7 +432,7 @@ def render_weekday_weekend(filtered: pd.DataFrame) -> None:
         color="Day Type",
         barmode="group",
         category_orders={"Day Type": ["Weekday", "Weekend"]},
-        color_discrete_sequence=["#7dd3fc", "#2563eb"],
+        color_discrete_sequence=["#5BA9DD", "#1E5BA8"],
     )
     comparison_fig.update_layout(
         height=320,
@@ -392,6 +441,7 @@ def render_weekday_weekend(filtered: pd.DataFrame) -> None:
         legend_title_text="",
     )
     comparison_fig.update_yaxes(ticksuffix="%", rangemode="tozero")
+    apply_penguin_theme(comparison_fig)
     st.plotly_chart(comparison_fig, width="stretch", config={"displayModeBar": False})
 
     st.markdown("**Monthly Weekend Minus Weekday Gap (Subway)**")
@@ -425,6 +475,7 @@ def render_weekday_weekend(filtered: pd.DataFrame) -> None:
         coloraxis_showscale=False,
     )
     gap_fig.update_yaxes(ticksuffix="%", zeroline=True, zerolinewidth=1)
+    apply_penguin_theme(gap_fig)
     st.plotly_chart(gap_fig, width="stretch", config={"displayModeBar": False})
 
 
@@ -487,6 +538,7 @@ def render_holiday_impact(filtered: pd.DataFrame) -> None:
         showlegend=False,
     )
     fig.update_yaxes(ticksuffix="%", rangemode="tozero")
+    apply_penguin_theme(fig)
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
     impact_rows = []
@@ -548,7 +600,7 @@ def render_yearly_recovery(filtered: pd.DataFrame) -> None:
         y="Avg Recovery Percent",
         color="Transit Mode",
         barmode="group",
-        color_discrete_sequence=["#60a5fa", "#f97316", "#ef4444", "#34d399", "#a78bfa"],
+        color_discrete_sequence=PENGUIN_PALETTE,
     )
     yearly_fig.update_layout(
         height=340,
@@ -557,6 +609,7 @@ def render_yearly_recovery(filtered: pd.DataFrame) -> None:
         legend_title_text="",
     )
     yearly_fig.update_yaxes(ticksuffix="%", rangemode="tozero")
+    apply_penguin_theme(yearly_fig)
     st.plotly_chart(yearly_fig, width="stretch", config={"displayModeBar": False})
 
 
@@ -669,7 +722,7 @@ def render_covid_context(
             y=combined["Subway Recovery Percent"],
             name="Subway recovery",
             mode="lines",
-            line=dict(color=MODE_COLORS["Subway"], width=2),
+            line=dict(color="#1E5BA8", width=2),
         ),
         secondary_y=False,
     )
@@ -679,7 +732,7 @@ def render_covid_context(
             y=combined["COVID Cases"],
             name="COVID cases",
             mode="lines",
-            line=dict(color="#dc2626", width=2),
+            line=dict(color="#F39C5C", width=2),
         ),
         secondary_y=True,
     )
@@ -691,6 +744,7 @@ def render_covid_context(
     fig.update_xaxes(title_text="Date")
     fig.update_yaxes(title_text="Subway Recovery", ticksuffix="%", secondary_y=False)
     fig.update_yaxes(title_text="COVID Cases", secondary_y=True)
+    apply_penguin_theme(fig)
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
     st.caption(
