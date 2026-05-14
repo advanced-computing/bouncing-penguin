@@ -1,0 +1,20 @@
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+extend-ignore = [
+  "E501", # line too long
+]
+extend-select = [
+  "B",   # flake8-bugbear (common bugs)
+  "C90", # McCabe complexity
+  "E",   # pycodestyle errors
+  "F",   # Pyflakes (basic errors)
+  "I",   # isort (import sorting)
+  "N",   # pep8-naming
+  "PD",  # pandas-vet
+  "PLR", # Pylint refactor (function/module length, complexity)
+  "SIM", # flake8-simplify
+  "UP",  # pyupgrade (modern Python)
+  "W",   # pycodestyle warnings
+]
